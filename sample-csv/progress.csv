@@ -1,0 +1,4 @@
+user_id,day,completed,completed_date
+REH001,1,true,2026-01-01
+REH001,2,true,2026-01-02
+REH002,1,true,2026-01-01

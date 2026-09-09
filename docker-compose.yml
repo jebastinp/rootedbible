@@ -1,0 +1,28 @@
+version: "3.9"
+
+services:
+  backend:
+    build:
+      context: ./backend
+    container_name: rooted-backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: rooted-frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+# NOTE: This project uses Supabase (hosted PostgreSQL) as its database -
+# there is no local Postgres container. Point backend/.env's DATABASE_URL
+# at your Supabase connection string. If you'd rather run Postgres locally
+# for development, add a standard `postgres:16-alpine` service here and
+# point DATABASE_URL at it instead.

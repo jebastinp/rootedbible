@@ -1,0 +1,99 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Light palette (warm ivory, premium green) */
+    --color-primary: 11 93 59;
+    --color-primary-light: 18 118 76;
+    --color-primary-dark: 8 67 42;
+    --color-secondary: 121 193 65;
+    --color-accent: 168 214 114;
+    --color-background: 248 244 236;
+    --color-surface: 255 255 255;
+    --color-ink: 27 27 27;
+    --color-ink-soft: 107 114 128;
+    --color-gold: 212 169 79;
+    --color-gold-light: 232 200 120;
+  }
+
+  /* Dark palette - a dedicated dark design, not an inversion. Warm charcoal
+     surfaces, soft (not pure) white text, and a brighter green so the brand
+     accent stays legible as text on dark backgrounds. */
+  .dark {
+    --color-primary: 92 196 140;
+    --color-primary-light: 130 217 171;
+    --color-primary-dark: 58 158 108;
+    --color-secondary: 140 201 92;
+    --color-accent: 168 214 114;
+    --color-background: 19 21 18;
+    --color-surface: 30 33 28;
+    --color-ink: 237 237 231;
+    --color-ink-soft: 156 161 150;
+    --color-gold: 224 186 104;
+    --color-gold-light: 236 206 140;
+  }
+
+  html, body {
+    @apply bg-background text-ink;
+  }
+  * {
+    @apply border-ink/10;
+  }
+  ::selection {
+    @apply bg-secondary/30;
+  }
+  :focus-visible {
+    outline: 2px solid rgb(var(--color-secondary));
+    outline-offset: 2px;
+  }
+}
+
+@layer utilities {
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  /* Apple-style glass surface - used sparingly (nav, sheets, floating controls). */
+  .glass {
+    background: rgb(var(--color-surface) / 0.75);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .glass {
+      background: rgb(var(--color-surface) / 0.96);
+    }
+  }
+  /* Admin dashboard form fields - desktop-first inputs, selects, textareas. */
+  .admin-input {
+    width: 100%;
+    padding: 0.625rem 1rem;
+    border-radius: 0.75rem;
+    border: 1px solid rgb(var(--color-ink) / 0.1);
+    background: rgb(var(--color-surface));
+    font-size: 0.875rem;
+  }
+  .admin-input:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgb(var(--color-secondary) / 0.4);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

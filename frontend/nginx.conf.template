@@ -1,0 +1,24 @@
+server {
+    listen ${PORT};
+    server_name _;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Only reachable when the frontend and backend share a Docker network
+    # (e.g. local `docker compose up`, where `backend` resolves via its
+    # service name). On Railway the frontend and backend are separate public
+    # services, so the build instead bakes an absolute VITE_API_BASE_URL
+    # pointing straight at the backend and this block is simply never hit.
+    location /api/ {
+        proxy_pass http://backend:8000/api/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+}
