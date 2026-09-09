@@ -1,0 +1,35 @@
+FROM node:20-alpine AS frontend-build
+WORKDIR /frontend
+
+ARG VITE_API_BASE_URL=/api/v1
+ARG VITE_SUPABASE_URL=
+ARG VITE_SUPABASE_ANON_KEY=
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
+ENV VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
+
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build
+
+FROM python:3.12-slim
+WORKDIR /app/backend
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PORT=8080
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    nginx gcc libpq-dev curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY backend/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY backend/ ./
+COPY --from=frontend-build /frontend/dist /usr/share/nginx/html
+COPY nginx.conf.template /app/nginx.conf.template
+COPY start.sh /app/start.sh
+
+EXPOSE 8080
+CMD ["sh", "/app/start.sh"]

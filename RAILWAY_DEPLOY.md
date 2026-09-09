@@ -1,6 +1,31 @@
 # Deploying Rooted to Railway
 
-This repo is a monorepo with two independently deployable services:
+This repo supports either a single Railway service or two independently deployable services.
+
+## Single-service deployment (recommended for a simple Railway setup)
+
+Create one Railway service from `jebastinp/rootedbible` with the repository root as its
+Root Directory. Railway will use the root `Dockerfile`, which builds the React frontend,
+runs the FastAPI backend, and serves both through Nginx on Railway's `$PORT`.
+
+Set these Variables on the service:
+
+- `DATABASE_URL`
+- `JWT_SECRET_KEY`
+- `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_JWT_SECRET`, `SUPABASE_SERVICE_ROLE_KEY`
+- `CORS_ORIGINS` containing the generated Railway domain, for example
+   `["https://rootedbible-production.up.railway.app"]`
+- `APP_ENV=production` and `DEBUG=false`
+
+For the frontend build, set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` to the same
+public Supabase URL and anon key. Leave `VITE_API_BASE_URL` unset (or set it to
+`/api/v1`); the combined image proxies that path to the local FastAPI process.
+
+Generate one public domain under **Networking** and use that domain for `CORS_ORIGINS`.
+
+## Two-service deployment
+
+If you prefer independent scaling, use the setup below:
 
 - `backend/` - FastAPI, `Dockerfile` present. Listens on `$PORT`, runs `alembic upgrade head` on every start.
 - `frontend/` - React/Vite, built to static files and served by nginx, `Dockerfile` present. Listens on `$PORT`.
