@@ -9,3 +9,10 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv
 }
+
+interface Window {
+  __ROOTED_CONFIG__?: {
+    supabaseUrl?: string
+    supabaseAnonKey?: string
+  }
+}
