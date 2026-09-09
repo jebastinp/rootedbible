@@ -19,10 +19,15 @@ def upgrade() -> None:
     op.execute("CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\"")
     op.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto")
 
-    user_role = postgresql.ENUM("member", "leader", "admin", "super_admin", name="user_role")
-    user_status = postgresql.ENUM("active", "inactive", "suspended", name="user_status")
-    announcement_visibility = postgresql.ENUM("all", "members", "leaders", "admins", name="announcement_visibility")
-    import_status = postgresql.ENUM("pending", "processing", "success", "failed", "rolled_back", name="import_status")
+    # create_type=False: the type is created explicitly below via .create()
+    # so op.create_table() must NOT also try to auto-create it - passing an
+    # ENUM with the (SQLAlchemy) default create_type=True as a column type
+    # makes create_table() emit its own CREATE TYPE, colliding with the one
+    # just created and failing with "type already exists".
+    user_role = postgresql.ENUM("member", "leader", "admin", "super_admin", name="user_role", create_type=False)
+    user_status = postgresql.ENUM("active", "inactive", "suspended", name="user_status", create_type=False)
+    announcement_visibility = postgresql.ENUM("all", "members", "leaders", "admins", name="announcement_visibility", create_type=False)
+    import_status = postgresql.ENUM("pending", "processing", "success", "failed", "rolled_back", name="import_status", create_type=False)
 
     bind = op.get_bind()
     user_role.create(bind, checkfirst=True)

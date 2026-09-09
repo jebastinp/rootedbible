@@ -21,15 +21,18 @@ echo "[start.sh] wrote /usr/share/nginx/html/config.js"
 envsubst '${PORT}' < /app/nginx.conf.template > /etc/nginx/conf.d/default.conf
 echo "[start.sh] rendered nginx config for PORT=${PORT:-8080}"
 
-# Migrations are logged loudly but are NOT allowed to take the whole
-# container down - if they fail, the app still starts so the failure is
+# scripts/migrate.py handles the case where this database's schema was
+# already created directly from schema.sql (no alembic_version yet) by
+# stamping at head instead of replaying migrations, then upgrades normally.
+# Still logged loudly but NOT allowed to take the whole container down - if
+# it fails for a genuine reason, the app still starts so the failure is
 # visible through the browser/network tab and Railway's health check still
 # passes, instead of a silent "Application failed to respond" 502 with zero
 # diagnostic information.
-if alembic upgrade head; then
-    echo "[start.sh] alembic upgrade head: OK"
+if python scripts/migrate.py; then
+    echo "[start.sh] migrate: OK"
 else
-    echo "[start.sh] *** alembic upgrade head FAILED (exit $?) - starting anyway so logs/errors are reachable. Check DATABASE_URL. ***" >&2
+    echo "[start.sh] *** migrate FAILED (exit $?) - starting anyway so logs/errors are reachable. Check DATABASE_URL. ***" >&2
 fi
 
 uvicorn app.main:app --host 127.0.0.1 --port 8000 &
