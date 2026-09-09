@@ -2,13 +2,15 @@
 Application configuration loaded from environment variables (.env).
 """
 from functools import lru_cache
-from typing import List
+import json
+from typing import Any, List
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore", enable_decoding=False)
 
     # App
     APP_NAME: str = "Rooted - Bible Reading Tracker API"
@@ -39,6 +41,21 @@ class Settings(BaseSettings):
 
     # CORS
     CORS_ORIGINS: List[str] = ["http://localhost:5173", "http://localhost:4173"]
+
+    @field_validator("CORS_ORIGINS", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, value: Any) -> List[str]:
+        if isinstance(value, list):
+            return value
+        if not isinstance(value, str) or not value.strip():
+            return []
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError:
+            parsed = [origin.strip() for origin in value.split(",") if origin.strip()]
+        if isinstance(parsed, str):
+            return [parsed]
+        return parsed
 
     # Rate limiting
     RATE_LIMIT_PER_MINUTE: int = 120
