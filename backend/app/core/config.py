@@ -42,6 +42,17 @@ class Settings(BaseSettings):
     # CORS
     CORS_ORIGINS: List[str] = ["http://localhost:5173", "http://localhost:4173"]
 
+    @field_validator("DATABASE_URL", mode="before")
+    @classmethod
+    def normalize_database_url(cls, value: Any) -> Any:
+        # Some hosts (Railway's own Postgres plugin, older Heroku-style URLs)
+        # hand out `postgres://` - SQLAlchemy 2.x only recognizes
+        # `postgresql://` and raises NoSuchModuleError at engine-creation
+        # time (i.e. at process startup, before anything can bind to $PORT).
+        if isinstance(value, str) and value.startswith("postgres://"):
+            return "postgresql://" + value[len("postgres://"):]
+        return value
+
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
     def parse_cors_origins(cls, value: Any) -> List[str]:
