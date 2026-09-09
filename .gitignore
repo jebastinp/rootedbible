@@ -33,3 +33,4 @@ npm-debug.log*
 /licensing/evidence/
 /content-sources/
 /bible/
+frontend/tsconfig.tsbuildinfo
