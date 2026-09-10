@@ -1,10 +1,11 @@
-"""Church Challenge is the parent container for Rooted's community system.
-
-There is no global community. A Family or Buddy Group always belongs to
-exactly one Church Challenge, and only users who are ACTIVE participants of
-that challenge can belong to its Family/Buddy groups. Membership is never
-automatic - every relationship (challenge, family, buddy) passes through a
-JoinRequest that must be approved before it becomes active.
+"""Church Challenge is a time-bound Bible reading challenge. Family and
+Buddy Group are standalone community entities a user creates for
+themselves (no size cap - see Family/BuddyGroup docstrings below); a
+Family/Buddy Group can optionally also participate in a specific Church
+Challenge via `challenge_id`, but that link is no longer required. There
+is no global community regardless - membership is never automatic, every
+relationship (challenge, family, buddy, church, fellowship) passes through
+a JoinRequest that must be approved before it becomes active.
 """
 import enum
 import uuid
@@ -45,6 +46,8 @@ class RequestType(str, enum.Enum):
     challenge = "challenge"
     family = "family"
     buddy = "buddy"
+    church = "church"
+    fellowship = "fellowship"
 
 
 class RequestStatus(str, enum.Enum):
@@ -67,12 +70,15 @@ class ChurchChallenge(Base):
     reading_plan_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("reading_plan.id", ondelete="SET NULL"), nullable=True)
     start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
-    participant_limit: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
+    # No participant cap by default - "unlimited" is modeled as NULL, not a
+    # large number, so there is never an artificial ceiling to hit.
+    participant_limit: Mapped[int | None] = mapped_column(Integer, nullable=True, default=None)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default=ChallengeStatus.draft.value)
+    # Whether this challenge accepts Family/Buddy Group participation at
+    # all - NOT a member-count cap (Family/BuddyGroup have none, see their
+    # own models).
     allow_families: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    family_limit: Mapped[int] = mapped_column(Integer, nullable=False, default=4)
     allow_buddies: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    buddy_limit: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
     quiz_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     rewards_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
@@ -99,13 +105,18 @@ class ChallengeMember(Base):
 
 
 class Family(Base):
+    """A user's own private family circle. No maximum member count is
+    enforced anywhere in code - `challenge_id` is an optional link to a
+    single Church Challenge this family is currently participating in for
+    that challenge's leaderboard; the family itself is not owned by it."""
     __tablename__ = "family"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    challenge_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("church_challenge.id", ondelete="CASCADE"), nullable=False)
+    challenge_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("church_challenge.id", ondelete="SET NULL"), nullable=True)
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     owner_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    privacy: Mapped[str] = mapped_column(String(20), nullable=False, default="private")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -127,12 +138,17 @@ class FamilyMember(Base):
 
 
 class BuddyGroup(Base):
+    """A user's own private accountability group. No maximum member count
+    is enforced anywhere in code - see Family's docstring for the same
+    optional `challenge_id` participation link."""
     __tablename__ = "buddy_group"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    challenge_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("church_challenge.id", ondelete="CASCADE"), nullable=False)
+    challenge_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("church_challenge.id", ondelete="SET NULL"), nullable=True)
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     owner_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    privacy: Mapped[str] = mapped_column(String(20), nullable=False, default="private")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -159,7 +175,7 @@ class JoinRequest(Base):
     BuddyMember once `status` is 'approved'."""
     __tablename__ = "join_request"
     __table_args__ = (
-        CheckConstraint("type in ('challenge','family','buddy')", name="chk_request_type"),
+        CheckConstraint("type in ('challenge','family','buddy','church','fellowship')", name="chk_request_type"),
         CheckConstraint("status in ('pending','approved','declined','cancelled')", name="chk_request_status"),
     )
 
@@ -170,6 +186,8 @@ class JoinRequest(Base):
     challenge_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("church_challenge.id", ondelete="CASCADE"), nullable=True)
     family_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("family.id", ondelete="CASCADE"), nullable=True)
     buddy_group_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("buddy_group.id", ondelete="CASCADE"), nullable=True)
+    church_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("church.id", ondelete="CASCADE"), nullable=True)
+    fellowship_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("fellowship.id", ondelete="CASCADE"), nullable=True)
     status: Mapped[str] = mapped_column(String(10), nullable=False, default=RequestStatus.pending.value)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     responded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

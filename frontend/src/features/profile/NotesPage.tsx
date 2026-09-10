@@ -27,7 +27,7 @@ export default function NotesPage() {
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: Math.min(i * 0.03, 0.3) }}
-              className="bg-surface rounded-2xl p-4 shadow-soft"
+              className="bg-surface rounded-2xl p-4 shadow-soft border border-ink/5"
             >
               <div className="flex items-start justify-between gap-3">
                 <p className="text-xs font-semibold text-primary">{note.verse_reference}</p>

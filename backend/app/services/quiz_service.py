@@ -2,15 +2,21 @@ import uuid
 
 from sqlalchemy.orm import Session
 
-from app.core.exceptions import NotFoundError, ConflictError
+from app.core.exceptions import NotFoundError, ConflictError, ValidationError
+from app.models.quiz import QuizQuestion
 from app.repositories.quiz_repository import QuizRepository
+from app.repositories.bible_repository import BibleRepository
 from app.services.progress_service import ProgressService
+from app.services import audit_service
 from app.schemas.quiz import (
     QuizForChapterOut,
     QuizQuestionOut,
     QuizSubmitRequest,
     QuizSubmitResponse,
     WrongAnswerHint,
+    QuizQuestionAdminOut,
+    QuizQuestionCreate,
+    QuizQuestionUpdate,
 )
 
 
@@ -26,6 +32,7 @@ class QuizService:
     def __init__(self, db: Session):
         self.db = db
         self.quiz_repo = QuizRepository(db)
+        self.bible_repo = BibleRepository(db)
         self.progress_service = ProgressService(db)
 
     def get_quiz_for_chapter(self, chapter_id: uuid.UUID, age_group: str = "adult") -> QuizForChapterOut:
@@ -82,3 +89,63 @@ class QuizService:
             attempt_count=attempt_count,
             hints=[] if passed else hints,
         )
+
+    # -----------------------------------------------------------------
+    # Admin: quiz question management
+    # -----------------------------------------------------------------
+    def resolve_chapter_id(self, version_code: str, book_name: str, chapter_number: int) -> uuid.UUID:
+        version = self.bible_repo.get_version_by_code(version_code)
+        if not version:
+            raise NotFoundError(f"Bible version '{version_code}' not found")
+        book = self.bible_repo.get_book_by_name(version.id, book_name)
+        if not book:
+            raise NotFoundError(f"Book '{book_name}' not found in {version.version_name}")
+        chapter = self.bible_repo.get_chapter(book.id, chapter_number)
+        if not chapter:
+            raise NotFoundError(f"{book_name} {chapter_number} not found in {version.version_name}")
+        return chapter.id
+
+    def _validate_correct_index(self, options: list[str], correct_index: int) -> None:
+        if correct_index >= len(options):
+            raise ValidationError("correct_index must point at one of the given options.")
+
+    def admin_list_questions_for_chapter(self, chapter_id: uuid.UUID) -> list[QuizQuestionAdminOut]:
+        return [QuizQuestionAdminOut.model_validate(q) for q in self.quiz_repo.list_all_for_chapter(chapter_id)]
+
+    def admin_create_question(self, actor_id: uuid.UUID, chapter_id: uuid.UUID, payload: QuizQuestionCreate) -> QuizQuestionAdminOut:
+        self._validate_correct_index(payload.options, payload.correct_index)
+        question = QuizQuestion(
+            chapter_id=chapter_id, question=payload.question, options=payload.options,
+            correct_index=payload.correct_index, verse_reference=payload.verse_reference, age_group=payload.age_group,
+        )
+        self.db.add(question)
+        self.db.flush()
+        audit_service.record(self.db, actor_id, "quiz_question_created", "quiz_question", question.id, {"chapter_id": str(chapter_id)})
+        self.db.commit()
+        self.db.refresh(question)
+        return QuizQuestionAdminOut.model_validate(question)
+
+    def _get_question(self, question_id: uuid.UUID) -> QuizQuestion:
+        question = self.quiz_repo.get_question_by_id(question_id)
+        if not question:
+            raise NotFoundError("Quiz question not found.")
+        return question
+
+    def admin_update_question(self, actor_id: uuid.UUID, question_id: uuid.UUID, payload: QuizQuestionUpdate) -> QuizQuestionAdminOut:
+        question = self._get_question(question_id)
+        changes = payload.model_dump(exclude_unset=True)
+        options = changes.get("options", question.options)
+        correct_index = changes.get("correct_index", question.correct_index)
+        self._validate_correct_index(options, correct_index)
+        for field, value in changes.items():
+            setattr(question, field, value)
+        audit_service.record(self.db, actor_id, "quiz_question_updated", "quiz_question", question.id)
+        self.db.commit()
+        self.db.refresh(question)
+        return QuizQuestionAdminOut.model_validate(question)
+
+    def admin_delete_question(self, actor_id: uuid.UUID, question_id: uuid.UUID) -> None:
+        question = self._get_question(question_id)
+        audit_service.record(self.db, actor_id, "quiz_question_deleted", "quiz_question", question.id)
+        self.db.delete(question)
+        self.db.commit()

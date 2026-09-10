@@ -181,7 +181,7 @@ export default function AdminCsvImportPage() {
                 </div>
               </div>
 
-              <div className="max-h-64 overflow-y-auto rounded-xl border border-ink/5 mb-4">
+              <div className="max-h-64 overflow-y-auto overflow-x-auto rounded-xl border border-ink/5 mb-4">
                 <table className="w-full text-xs">
                   <thead className="sticky top-0 bg-background">
                     <tr>

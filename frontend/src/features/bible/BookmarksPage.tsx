@@ -21,7 +21,7 @@ export default function BookmarksPage() {
           <p className="text-sm text-ink-soft">No bookmarks yet. Bookmark a verse while reading to save it here.</p>
         </div>
       ) : (
-        <div className="bg-surface rounded-3xl shadow-soft divide-y divide-ink/5 overflow-hidden">
+        <div className="bg-surface rounded-3xl shadow-soft border border-ink/5 divide-y divide-ink/5 overflow-hidden">
           {bookmarks.map((b) => (
             <div key={b.id} className="flex items-start gap-3 px-5 py-4">
               <button

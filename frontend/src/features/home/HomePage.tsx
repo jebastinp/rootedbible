@@ -7,14 +7,15 @@ import { useHomeSummary, useTodayReading, useMarkCompleted } from './useHome'
 import { getPreferredVersion } from '@/lib/preferredVersion'
 import ProgressRing from '@/components/shared/ProgressRing'
 import { getApiErrorMessage } from '@/lib/api'
+import { useUnreadNotificationCount } from '@/features/notifications/useNotifications'
 
 function greeting() {
   const hour = new Date().getHours()
-  if (hour < 5) return 'Good Night'
-  if (hour < 12) return 'Good Morning'
-  if (hour < 17) return 'Good Afternoon'
-  if (hour < 21) return 'Good Evening'
-  return 'Good Night'
+  if (hour < 5) return 'Good night'
+  if (hour < 12) return 'Good morning'
+  if (hour < 17) return 'Good afternoon'
+  if (hour < 21) return 'Good evening'
+  return 'Good night'
 }
 
 const QUICK_ACCESS = [
@@ -29,6 +30,7 @@ export default function HomePage() {
   const navigate = useNavigate()
   const { data: summary, isLoading: summaryLoading } = useHomeSummary()
   const { data: today, isLoading: todayLoading } = useTodayReading()
+  const { data: unreadCount } = useUnreadNotificationCount()
   const markCompleted = useMarkCompleted()
 
   const passages = today?.passages ?? []
@@ -83,17 +85,23 @@ export default function HomePage() {
           </div>
         </div>
         <button
+          onClick={() => navigate('/notifications')}
           aria-label="Notifications"
-          className="w-10 h-10 rounded-full flex items-center justify-center bg-surface shadow-soft text-ink-soft shrink-0"
+          className="relative w-10 h-10 rounded-full flex items-center justify-center bg-surface shadow-soft border border-ink/5 text-ink-soft shrink-0 active:scale-95 transition-transform"
         >
           <Bell size={18} />
+          {!!unreadCount && (
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-secondary" />
+          )}
         </button>
       </div>
 
-      {/* Greeting */}
-      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-        <p className="text-ink-soft text-sm">{greeting()},</p>
-        <h1 className="text-3xl font-bold text-ink tracking-tight">{user?.name?.split(' ')[0]}!</h1>
+      {/* Greeting - compact, single line, name is not the whole show */}
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-0.5">
+        <h1 className="text-[26px] leading-tight font-bold text-ink tracking-tight">
+          {greeting()}, {user?.name?.split(' ')[0]}
+        </h1>
+        <p className="text-ink-soft text-[15px]">Let's grow in the Word today.</p>
       </motion.div>
 
       {/* Hero verse */}
@@ -101,7 +109,7 @@ export default function HomePage() {
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.05 }}
-        className="rounded-3xl overflow-hidden shadow-soft relative h-40"
+        className="rounded-3xl overflow-hidden shadow-soft relative h-40 border border-ink/5"
       >
         <img src="/hero-cross-hills.png" alt="" className="w-full h-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
@@ -118,7 +126,7 @@ export default function HomePage() {
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className="bg-surface rounded-3xl p-5 shadow-soft"
+        className="bg-surface rounded-3xl p-5 shadow-soft border border-ink/5"
       >
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
@@ -132,73 +140,98 @@ export default function HomePage() {
           )}
         </div>
 
-        <div className="space-y-1 mb-3">
-          {today?.old_testament && <p className="text-base font-semibold text-ink leading-snug">{today.old_testament}</p>}
-          {today?.new_testament && <p className="text-base font-semibold text-ink leading-snug">{today.new_testament}</p>}
-          {!today?.old_testament && !today?.new_testament && (
-            <p className="text-sm text-ink-soft">No reading scheduled for today yet.</p>
-          )}
-        </div>
+        {today?.old_testament || today?.new_testament ? (
+          <>
+            <div className="space-y-1 mb-3">
+              {today.old_testament && <p className="text-base font-semibold text-ink leading-snug">{today.old_testament}</p>}
+              {today.new_testament && <p className="text-base font-semibold text-ink leading-snug">{today.new_testament}</p>}
+            </div>
 
-        <div className="flex items-center gap-3 text-xs text-ink-soft mb-4">
-          {today && (
-            <span className="flex items-center gap-1"><Clock size={13} /> {today.estimated_minutes} min</span>
-          )}
-          {today?.old_testament && <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">Old Testament</span>}
-          {today?.new_testament && <span className="px-2 py-0.5 rounded-full bg-secondary/10 text-secondary font-medium">New Testament</span>}
-        </div>
+            <div className="flex items-center gap-3 text-xs text-ink-soft mb-3">
+              <span className="flex items-center gap-1"><Clock size={13} /> {today.estimated_minutes} min</span>
+              {today.old_testament && <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">Old Testament</span>}
+              {today.new_testament && <span className="px-2 py-0.5 rounded-full bg-secondary/10 text-secondary font-medium">New Testament</span>}
+            </div>
 
-        {today?.completed ? (
-          <div className="flex items-center gap-2 bg-primary/10 text-primary rounded-2xl py-3.5 px-4 justify-center font-semibold">
-            <CheckCircle2 size={20} />
-            Completed Today
-          </div>
+            {!today.completed && (
+              <div className="flex items-center gap-2 mb-4">
+                <div className="flex-1 h-1.5 rounded-full bg-ink/10 overflow-hidden">
+                  <div className="h-full rounded-full bg-primary transition-[width]" style={{ width: `${chaptersPercentage}%` }} />
+                </div>
+                <span className="text-[11px] font-semibold text-ink-soft shrink-0">{chaptersPercentage}%</span>
+              </div>
+            )}
+
+            {today.completed ? (
+              <div className="flex items-center gap-2 bg-primary/10 text-primary rounded-2xl py-3.5 px-4 justify-center font-semibold">
+                <CheckCircle2 size={20} />
+                Completed Today
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <button
+                  onClick={handleReadNow}
+                  disabled={!firstPassage}
+                  className="w-full bg-primary text-white font-semibold py-3.5 rounded-2xl active:scale-[0.98] transition-transform disabled:opacity-50 flex items-center justify-center gap-1.5"
+                >
+                  Continue Reading <ChevronRight size={18} />
+                </button>
+                <button
+                  onClick={() => navigate('/plans')}
+                  className="w-full text-ink-soft font-medium py-2 text-sm"
+                >
+                  View Full Plan
+                </button>
+              </div>
+            )}
+          </>
         ) : (
-          <div className="space-y-2">
-            <button
-              onClick={handleReadNow}
-              disabled={!firstPassage}
-              className="w-full bg-primary text-white font-semibold py-3.5 rounded-2xl active:scale-[0.98] transition-transform disabled:opacity-50 flex items-center justify-center gap-1.5"
-            >
-              Start Reading <ChevronRight size={18} />
-            </button>
-            <button
-              onClick={() => navigate('/plans')}
-              className="w-full border border-ink/10 text-ink font-medium py-3 rounded-2xl active:scale-[0.98] transition-transform text-sm"
-            >
-              View Full Plan
-            </button>
-            {!firstPassage && (
+          <div className="text-center py-2">
+            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
+              <BookOpen size={22} className="text-primary" />
+            </div>
+            <p className="text-sm font-semibold text-ink mb-1">No reading scheduled for today yet</p>
+            <p className="text-xs text-ink-soft mb-4 max-w-[240px] mx-auto leading-relaxed">
+              Your church hasn't published today's passage yet. Check the full plan or read on your own in the meantime.
+            </p>
+            <div className="space-y-2">
+              <button
+                onClick={() => navigate('/plans')}
+                className="w-full bg-primary text-white font-semibold py-3.5 rounded-2xl active:scale-[0.98] transition-transform flex items-center justify-center gap-1.5"
+              >
+                View Full Plan <ChevronRight size={18} />
+              </button>
               <button
                 onClick={handleMarkCompleted}
                 disabled={markCompleted.isPending}
                 className="w-full text-ink-soft text-xs font-medium py-2 flex items-center justify-center gap-2"
               >
-                {markCompleted.isPending ? <Loader2 size={14} className="animate-spin" /> : "I already read this elsewhere - mark complete"}
+                {markCompleted.isPending ? <Loader2 size={14} className="animate-spin" /> : 'Already read today? Mark as complete'}
               </button>
-            )}
+            </div>
           </div>
         )}
       </motion.div>
 
-      {/* Quick stats */}
+      {/* Quick stats - one unified summary card with divided columns, Apple
+          Health/Fitness-style, rather than four separate boxes. */}
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.15 }}
-        className="grid grid-cols-4 gap-2.5"
+        className="bg-surface rounded-3xl shadow-soft border border-ink/5 grid grid-cols-4 divide-x divide-ink/5"
       >
         {quickStats.map((s) => (
-          <div key={s.label} className="bg-surface rounded-2xl p-3 shadow-soft flex flex-col items-center text-center">
+          <div key={s.label} className="flex flex-col items-center text-center py-4 px-1.5">
             {s.ring ? (
-              <ProgressRing percentage={chaptersPercentage} size={28} strokeWidth={4} className="mb-1.5" />
+              <ProgressRing percentage={chaptersPercentage} size={30} strokeWidth={4} className="mb-1.5" />
             ) : s.icon ? (
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center mb-1.5 ${s.bgClass}`}>
-                <s.icon size={16} className={s.iconClass} />
+              <div className={`w-9 h-9 rounded-full flex items-center justify-center mb-1.5 ${s.bgClass}`}>
+                <s.icon size={17} className={s.iconClass} />
               </div>
             ) : null}
-            <div className="text-sm font-bold text-ink leading-tight">{s.value}</div>
-            <div className="text-[9px] text-ink-soft font-medium mt-0.5 leading-tight">{s.label}</div>
+            <div className="text-base font-bold text-ink leading-tight">{s.value}</div>
+            <div className="text-[9.5px] text-ink-soft font-medium mt-1 leading-tight">{s.label}</div>
           </div>
         ))}
       </motion.div>
@@ -209,7 +242,7 @@ export default function HomePage() {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="bg-gradient-to-br from-secondary/10 to-accent/10 rounded-3xl p-5 border border-secondary/15"
+          className="bg-gradient-to-br from-secondary/10 to-accent/10 rounded-3xl p-5 border border-secondary/15 shadow-soft"
         >
           <div className="flex items-center gap-2 mb-2">
             <Sparkles size={16} className="text-secondary" />
@@ -227,7 +260,7 @@ export default function HomePage() {
             <button
               key={q.label}
               onClick={() => navigate(q.to)}
-              className="bg-surface rounded-2xl p-3 shadow-soft flex flex-col items-center gap-1.5 active:scale-95 transition-transform"
+              className="bg-surface rounded-2xl p-3 shadow-soft border border-ink/5 flex flex-col items-center gap-1.5 active:scale-95 transition-transform"
             >
               <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
                 <q.icon size={17} className="text-primary" />
@@ -244,7 +277,7 @@ export default function HomePage() {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="bg-surface rounded-3xl p-5 shadow-soft"
+          className="bg-surface rounded-3xl p-5 shadow-soft border border-ink/5"
         >
           <div className="flex items-center gap-2 mb-3">
             <Megaphone size={16} className="text-primary" />

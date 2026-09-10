@@ -33,6 +33,9 @@ class QuizRepository:
         self.db.refresh(attempt)
         return attempt
 
+    def list_all_for_chapter(self, chapter_id: uuid.UUID) -> list[QuizQuestion]:
+        return self.db.query(QuizQuestion).filter(QuizQuestion.chapter_id == chapter_id).order_by(QuizQuestion.age_group).all()
+
     def has_passed(self, user_id: uuid.UUID, reading_plan_id: uuid.UUID) -> bool:
         return (
             self.db.query(QuizAttempt)

@@ -42,21 +42,21 @@ def get_member(member_id: uuid.UUID, db: Session = Depends(get_db), _: User = De
 
 
 @router.patch("/{member_id}", response_model=UserOut, summary="Edit a member")
-def update_member(member_id: uuid.UUID, payload: UserUpdate, db: Session = Depends(get_db), _: User = Depends(require_admin)):
-    return UserService(db).update(member_id, payload)
+def update_member(member_id: uuid.UUID, payload: UserUpdate, db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
+    return UserService(db).update(member_id, payload, actor_id=current_user.id)
 
 
 @router.post("/{member_id}/deactivate", response_model=UserOut, summary="Deactivate a member")
-def deactivate_member(member_id: uuid.UUID, db: Session = Depends(get_db), _: User = Depends(require_admin)):
-    return UserService(db).deactivate(member_id)
+def deactivate_member(member_id: uuid.UUID, db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
+    return UserService(db).deactivate(member_id, actor_id=current_user.id)
 
 
 @router.post("/{member_id}/activate", response_model=UserOut, summary="Reactivate a member")
-def activate_member(member_id: uuid.UUID, db: Session = Depends(get_db), _: User = Depends(require_admin)):
-    return UserService(db).activate(member_id)
+def activate_member(member_id: uuid.UUID, db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
+    return UserService(db).activate(member_id, actor_id=current_user.id)
 
 
 @router.delete("/{member_id}", summary="Soft-delete a member")
-def delete_member(member_id: uuid.UUID, db: Session = Depends(get_db), _: User = Depends(require_admin)):
-    UserService(db).delete(member_id)
+def delete_member(member_id: uuid.UUID, db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
+    UserService(db).delete(member_id, actor_id=current_user.id)
     return {"message": "Member deleted successfully"}

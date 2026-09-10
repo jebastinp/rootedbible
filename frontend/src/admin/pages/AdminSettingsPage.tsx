@@ -62,13 +62,13 @@ export default function AdminSettingsPage() {
       <AdminPageHeader title="Settings" description="Church-wide configuration" />
       <div className="p-8 max-w-xl space-y-6">
         <SuperAdminAccountCard />
-        <form onSubmit={handleSave} className="bg-surface rounded-3xl p-6 shadow-soft space-y-5">
+        <form onSubmit={handleSave} className="bg-surface rounded-3xl p-6 shadow-soft border border-ink/5 space-y-5">
           <div>
             <label className="block text-sm font-medium mb-1.5">Church Name</label>
             <input
               value={form.church_name}
               onChange={(e) => setForm({ ...form, church_name: e.target.value })}
-              className="w-full px-4 py-2.5 rounded-xl border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary/40"
+              className="admin-input"
             />
           </div>
           <div>
@@ -77,7 +77,7 @@ export default function AdminSettingsPage() {
               value={form.church_logo_url ?? ''}
               onChange={(e) => setForm({ ...form, church_logo_url: e.target.value })}
               placeholder="https://..."
-              className="w-full px-4 py-2.5 rounded-xl border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary/40"
+              className="admin-input"
             />
           </div>
           <div>
@@ -86,7 +86,7 @@ export default function AdminSettingsPage() {
               type="number"
               value={form.reading_year}
               onChange={(e) => setForm({ ...form, reading_year: Number(e.target.value) })}
-              className="w-full px-4 py-2.5 rounded-xl border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary/40"
+              className="admin-input"
             />
           </div>
           <div>
@@ -95,7 +95,7 @@ export default function AdminSettingsPage() {
               rows={3}
               value={form.verse_of_the_day ?? ''}
               onChange={(e) => setForm({ ...form, verse_of_the_day: e.target.value })}
-              className="w-full px-4 py-2.5 rounded-xl border border-ink/10 resize-none focus:outline-none focus:ring-2 focus:ring-secondary/40"
+              className="admin-input resize-none"
             />
           </div>
           <button
@@ -132,7 +132,7 @@ function SuperAdminAccountCard() {
   })
 
   return (
-    <div className="bg-surface rounded-3xl p-6 shadow-soft space-y-4">
+    <div className="bg-surface rounded-3xl p-6 shadow-soft border border-ink/5 space-y-4">
       <div>
         <p className="text-sm font-semibold">Super Admin Account</p>
         <p className="text-xs text-ink-soft mt-0.5">{user?.name} · {user?.user_id}</p>
@@ -144,7 +144,7 @@ function SuperAdminAccountCard() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="admin.rootedbible@gmail.com"
-          className="w-full px-4 py-2.5 rounded-xl border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary/40"
+          className="admin-input"
         />
         <p className="text-xs text-ink-soft mt-1.5">This is the email the Super Admin signs in with - it is never shown to members.</p>
       </div>

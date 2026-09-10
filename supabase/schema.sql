@@ -45,6 +45,12 @@ create table if not exists users (
     date_of_birth   date,
     auth_provider   varchar(20),                        -- 'google' | 'email' | 'legacy'
     last_login_at   timestamptz,
+    house_no        varchar(50),
+    street_name     varchar(150),
+    city_name       varchar(100),
+    state_name      varchar(100),
+    postcode        varchar(20),
+    country         varchar(100),
     created_at      timestamptz not null default now(),
     updated_at      timestamptz not null default now(),
     deleted_at      timestamptz
@@ -356,10 +362,9 @@ create table if not exists highlight (
 create index if not exists idx_highlight_user on highlight (user_id);
 
 -- ---------------------------------------------------------------------
--- CHURCH CHALLENGE: the parent container for Family / Buddy Group community.
--- There is no global community - a Family or Buddy Group always belongs to
--- exactly one Church Challenge, and only ACTIVE participants of that
--- challenge may belong to its groups.
+-- CHURCH CHALLENGE: a time-bound Bible reading challenge. Family and Buddy
+-- Group are standalone entities (see below) that may optionally also
+-- participate in one Church Challenge, but are not owned by it.
 -- ---------------------------------------------------------------------
 create table if not exists church_challenge (
     id                  uuid primary key default uuid_generate_v4(),
@@ -369,12 +374,10 @@ create table if not exists church_challenge (
     reading_plan_id     uuid references reading_plan(id) on delete set null,
     start_date          date,
     end_date            date,
-    participant_limit   integer not null default 100,
+    participant_limit   integer,                        -- null = unlimited
     status              varchar(20) not null default 'draft' check (status in ('draft','active','completed','archived')),
     allow_families      boolean not null default true,
-    family_limit        integer not null default 4,
     allow_buddies       boolean not null default true,
-    buddy_limit         integer not null default 5,
     quiz_enabled        boolean not null default true,
     rewards_enabled     boolean not null default true,
     created_by          uuid references users(id) on delete set null,
@@ -399,10 +402,11 @@ create index if not exists idx_challenge_member_user on challenge_member (user_i
 
 create table if not exists family (
     id                  uuid primary key default uuid_generate_v4(),
-    challenge_id        uuid not null references church_challenge(id) on delete cascade,
+    challenge_id        uuid references church_challenge(id) on delete set null,  -- optional: current challenge participation
     name                varchar(120) not null,
     owner_id            uuid not null references users(id) on delete cascade,
     description         text,
+    privacy             varchar(20) not null default 'private',
     created_at          timestamptz not null default now(),
     updated_at          timestamptz not null default now()
 );
@@ -424,9 +428,11 @@ create index if not exists idx_family_member_user on family_member (user_id);
 
 create table if not exists buddy_group (
     id                  uuid primary key default uuid_generate_v4(),
-    challenge_id        uuid not null references church_challenge(id) on delete cascade,
+    challenge_id        uuid references church_challenge(id) on delete set null,  -- optional: current challenge participation
     name                varchar(120) not null,
     owner_id            uuid not null references users(id) on delete cascade,
+    description         text,
+    privacy             varchar(20) not null default 'private',
     created_at          timestamptz not null default now(),
     updated_at          timestamptz not null default now()
 );
@@ -446,14 +452,98 @@ create table if not exists buddy_member (
 create index if not exists idx_buddy_member_group on buddy_member (buddy_group_id);
 create index if not exists idx_buddy_member_user on buddy_member (user_id);
 
+create table if not exists church (
+    id                  uuid primary key default uuid_generate_v4(),
+    name                varchar(200) not null,
+    church_code         varchar(20) not null unique,
+    description         text,
+    address             text,
+    owner_id            uuid not null references users(id) on delete cascade,
+    privacy             varchar(20) not null default 'public' check (privacy in ('public','private','invite_only')),
+    status              varchar(20) not null default 'active' check (status in ('active','suspended')),
+    created_at          timestamptz not null default now(),
+    updated_at          timestamptz not null default now()
+);
+
+create index if not exists idx_church_owner on church (owner_id);
+
+create table if not exists church_member (
+    id                  uuid primary key default uuid_generate_v4(),
+    church_id           uuid not null references church(id) on delete cascade,
+    user_id             uuid not null references users(id) on delete cascade,
+    role                varchar(10) not null default 'member' check (role in ('owner','admin','member')),
+    status              varchar(10) not null default 'active' check (status in ('active','removed','left')),
+    joined_at           timestamptz not null default now(),
+    unique (church_id, user_id)
+);
+
+create index if not exists idx_church_member_church on church_member (church_id);
+create index if not exists idx_church_member_user on church_member (user_id);
+
+create table if not exists fellowship (
+    id                  uuid primary key default uuid_generate_v4(),
+    name                varchar(200) not null,
+    description         text,
+    church_id           uuid references church(id) on delete set null,
+    owner_id            uuid not null references users(id) on delete cascade,
+    privacy             varchar(20) not null default 'public' check (privacy in ('public','private','invite_only')),
+    status              varchar(20) not null default 'active' check (status in ('active','suspended')),
+    created_at          timestamptz not null default now(),
+    updated_at          timestamptz not null default now()
+);
+
+create index if not exists idx_fellowship_church on fellowship (church_id);
+create index if not exists idx_fellowship_owner on fellowship (owner_id);
+
+create table if not exists fellowship_member (
+    id                  uuid primary key default uuid_generate_v4(),
+    fellowship_id       uuid not null references fellowship(id) on delete cascade,
+    user_id             uuid not null references users(id) on delete cascade,
+    role                varchar(10) not null default 'member' check (role in ('owner','admin','member')),
+    status              varchar(10) not null default 'active' check (status in ('active','removed','left')),
+    joined_at           timestamptz not null default now(),
+    unique (fellowship_id, user_id)
+);
+
+create index if not exists idx_fellowship_member_fellowship on fellowship_member (fellowship_id);
+create index if not exists idx_fellowship_member_user on fellowship_member (user_id);
+
+-- Fixed ministry groups (Sunday / Blazer / Youth / Men / Women) - a real
+-- table (not a hardcoded list) so new groups can be added without a code
+-- change. A user may belong to more than one.
+create table if not exists rooted_group (
+    id                  uuid primary key default uuid_generate_v4(),
+    name                varchar(80) not null unique,
+    sort_order          integer not null default 0,
+    is_active           boolean not null default true,
+    created_at          timestamptz not null default now()
+);
+
+create table if not exists user_group_membership (
+    id                  uuid primary key default uuid_generate_v4(),
+    user_id             uuid not null references users(id) on delete cascade,
+    group_id            uuid not null references rooted_group(id) on delete cascade,
+    joined_at           timestamptz not null default now(),
+    unique (user_id, group_id)
+);
+
+create index if not exists idx_user_group_user on user_group_membership (user_id);
+
+insert into rooted_group (name, sort_order)
+select v.name, v.sort_order
+from (values ('Sunday School', 1), ('Blazer', 2), ('Youth', 3), ('Men', 4), ('Women', 5)) as v(name, sort_order)
+where not exists (select 1 from rooted_group where rooted_group.name = v.name);
+
 create table if not exists join_request (
     id                  uuid primary key default uuid_generate_v4(),
-    type                varchar(20) not null check (type in ('challenge','family','buddy')),
+    type                varchar(20) not null check (type in ('challenge','family','buddy','church','fellowship')),
     requester_id        uuid not null references users(id) on delete cascade,
     target_user_id      uuid references users(id) on delete cascade,
     challenge_id        uuid references church_challenge(id) on delete cascade,
     family_id           uuid references family(id) on delete cascade,
     buddy_group_id      uuid references buddy_group(id) on delete cascade,
+    church_id           uuid references church(id) on delete cascade,
+    fellowship_id       uuid references fellowship(id) on delete cascade,
     status              varchar(10) not null default 'pending' check (status in ('pending','approved','declined','cancelled')),
     created_at          timestamptz not null default now(),
     responded_at        timestamptz,
@@ -465,6 +555,8 @@ create index if not exists idx_request_target on join_request (target_user_id);
 create index if not exists idx_request_challenge on join_request (challenge_id);
 create index if not exists idx_request_family on join_request (family_id);
 create index if not exists idx_request_buddy_group on join_request (buddy_group_id);
+create index if not exists idx_request_church on join_request (church_id);
+create index if not exists idx_request_fellowship on join_request (fellowship_id);
 
 create table if not exists challenge_reward (
     id                  uuid primary key default uuid_generate_v4(),
@@ -493,6 +585,31 @@ create table if not exists encouragement (
 
 create index if not exists idx_encouragement_family on encouragement (family_id);
 create index if not exists idx_encouragement_buddy_group on encouragement (buddy_group_id);
+
+create table if not exists notification (
+    id                  uuid primary key default uuid_generate_v4(),
+    user_id             uuid not null references users(id) on delete cascade,
+    type                varchar(40) not null,
+    title               varchar(150) not null,
+    message             text,
+    link                varchar(300),
+    is_read             boolean not null default false,
+    created_at          timestamptz not null default now()
+);
+
+create index if not exists idx_notification_user on notification (user_id);
+create index if not exists idx_notification_user_unread on notification (user_id, is_read);
+
+create table if not exists leaderboard_config (
+    id                  uuid primary key default uuid_generate_v4(),
+    challenge_id        uuid not null references church_challenge(id) on delete cascade,
+    scope               varchar(40) not null,
+    ranking_limit       integer not null default 3,
+    created_at          timestamptz not null default now(),
+    unique (challenge_id, scope)
+);
+
+create index if not exists idx_leaderboard_config_challenge on leaderboard_config (challenge_id);
 
 -- ---------------------------------------------------------------------
 -- TRIGGERS: auto-update updated_at
@@ -535,6 +652,14 @@ create trigger trg_buddy_group_updated_at before update on buddy_group
 
 drop trigger if exists trg_challenge_reward_updated_at on challenge_reward;
 create trigger trg_challenge_reward_updated_at before update on challenge_reward
+  for each row execute function set_updated_at();
+
+drop trigger if exists trg_church_updated_at on church;
+create trigger trg_church_updated_at before update on church
+  for each row execute function set_updated_at();
+
+drop trigger if exists trg_fellowship_updated_at on fellowship;
+create trigger trg_fellowship_updated_at before update on fellowship
   for each row execute function set_updated_at();
 
 -- ---------------------------------------------------------------------

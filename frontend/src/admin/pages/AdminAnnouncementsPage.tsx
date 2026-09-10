@@ -46,7 +46,7 @@ export default function AdminAnnouncementsPage() {
       <div className="p-8 space-y-4">
         {isLoading && <Loader2 className="animate-spin text-primary mx-auto mt-10" size={24} />}
         {data?.items.map((a) => (
-          <div key={a.id} className="bg-surface rounded-3xl p-5 shadow-soft flex items-start gap-4">
+          <div key={a.id} className="bg-surface rounded-3xl p-5 shadow-soft border border-ink/5 flex items-start gap-4">
             <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
               <Megaphone size={18} className="text-primary" />
             </div>
@@ -141,7 +141,7 @@ function AnnouncementModal({
 
   return (
     <div className="fixed inset-0 bg-ink/40 backdrop-blur-sm flex items-center justify-center z-50 px-4">
-      <div className="bg-surface rounded-3xl shadow-card w-full max-w-lg p-6">
+      <div className="glass rounded-3xl shadow-card border border-ink/5 w-full max-w-lg p-6">
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-semibold">{announcement ? 'Edit Announcement' : 'New Announcement'}</h2>
           <button onClick={onClose} className="text-ink-soft hover:text-ink">
@@ -155,7 +155,7 @@ function AnnouncementModal({
               required
               value={form.title}
               onChange={(e) => setForm({ ...form, title: e.target.value })}
-              className="w-full px-4 py-2.5 rounded-xl border border-ink/10"
+              className="admin-input"
             />
           </div>
           <div>
@@ -165,7 +165,7 @@ function AnnouncementModal({
               rows={3}
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
-              className="w-full px-4 py-2.5 rounded-xl border border-ink/10 resize-none"
+              className="admin-input resize-none"
             />
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -176,7 +176,7 @@ function AnnouncementModal({
                 required
                 value={form.publish_date}
                 onChange={(e) => setForm({ ...form, publish_date: e.target.value })}
-                className="w-full px-4 py-2.5 rounded-xl border border-ink/10"
+                className="admin-input"
               />
             </div>
             <div>
@@ -185,7 +185,7 @@ function AnnouncementModal({
                 type="date"
                 value={form.expiry_date}
                 onChange={(e) => setForm({ ...form, expiry_date: e.target.value })}
-                className="w-full px-4 py-2.5 rounded-xl border border-ink/10"
+                className="admin-input"
               />
             </div>
           </div>
@@ -194,7 +194,7 @@ function AnnouncementModal({
             <select
               value={form.visibility}
               onChange={(e) => setForm({ ...form, visibility: e.target.value })}
-              className="w-full px-4 py-2.5 rounded-xl border border-ink/10"
+              className="admin-input"
             >
               <option value="all">Everyone</option>
               <option value="members">Members</option>

@@ -28,7 +28,7 @@ export default function AchievementsPage() {
           <p className="text-sm text-ink-soft">{earnedCount} of {badges.length} earned</p>
           <div className="grid grid-cols-3 gap-4">
             {badges.map((b) => (
-              <div key={b.label} className="bg-surface rounded-2xl p-4 shadow-soft flex flex-col items-center gap-2 text-center">
+              <div key={b.label} className="bg-surface rounded-2xl p-4 shadow-soft border border-ink/5 flex flex-col items-center gap-2 text-center">
                 <div className={`w-16 h-16 rounded-2xl flex items-center justify-center overflow-hidden bg-background ${!b.achieved && 'opacity-30 grayscale'}`}>
                   <img src={b.img} alt={b.label} className="w-full h-full object-contain scale-125" />
                 </div>

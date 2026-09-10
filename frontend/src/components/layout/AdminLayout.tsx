@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Users, BookOpen, Wand2, BarChart3, Megaphone, UploadCloud, Settings, LogOut, Menu, X, Trophy, ScrollText,
+  Home, HeartHandshake, Church, Handshake, HelpCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
@@ -10,8 +11,13 @@ const navItems = [
   { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/admin/challenges', label: 'Church Challenges', icon: Trophy, end: false },
   { to: '/admin/members', label: 'Members', icon: Users, end: false },
+  { to: '/admin/families', label: 'Families', icon: Home, end: false },
+  { to: '/admin/buddy-groups', label: 'Buddy Groups', icon: Handshake, end: false },
+  { to: '/admin/churches', label: 'Churches', icon: Church, end: false },
+  { to: '/admin/fellowships', label: 'Fellowships', icon: HeartHandshake, end: false },
   { to: '/admin/reading-plan', label: 'Reading Plan', icon: BookOpen, end: false },
   { to: '/admin/plan-generator', label: 'Plan Generator', icon: Wand2, end: false },
+  { to: '/admin/quiz', label: 'Quiz Questions', icon: HelpCircle, end: false },
   { to: '/admin/reports', label: 'Reports', icon: BarChart3, end: false },
   { to: '/admin/announcements', label: 'Announcements', icon: Megaphone, end: false },
   { to: '/admin/csv-import', label: 'CSV Import', icon: UploadCloud, end: false },
@@ -88,7 +94,7 @@ export default function AdminLayout() {
       </aside>
 
       {/* Phone top bar - the sidebar above is hidden below md, so this is the only nav entry point on phones */}
-      <div className="md:hidden fixed top-0 left-0 right-0 z-30 safe-top bg-surface border-b border-ink/5 flex items-center justify-between px-4 py-3">
+      <div className="md:hidden fixed top-0 left-0 right-0 z-30 safe-top glass border-b border-ink/5 flex items-center justify-between px-4 py-3">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center p-1">
             <img src="/logo.png" alt="Rooted" className="w-full h-full object-contain" />

@@ -129,7 +129,7 @@ export default function AdminPlanGeneratorPage() {
                 id="plan-bible-version"
                 value={bibleVersionCode}
                 disabled={!versions.data?.length}
-                className="mt-2 w-full rounded-xl border border-ink/10 px-3 py-2 text-sm disabled:opacity-50"
+                className="mt-2 admin-input disabled:opacity-50"
                 onChange={(event) => setBibleVersionCode(event.target.value)}
               >
                 {!versions.data?.length && <option value="">No approved editions available</option>}
@@ -158,7 +158,7 @@ export default function AdminPlanGeneratorPage() {
                   value={customBooks}
                   onChange={(e) => setCustomBooks(e.target.value)}
                   placeholder="e.g. Genesis, Exodus, Matthew"
-                  className="mt-2 w-full rounded-xl border border-ink/10 px-3 py-2 text-sm"
+                  className="mt-2 admin-input"
                 />
               )}
             </div>
@@ -169,7 +169,7 @@ export default function AdminPlanGeneratorPage() {
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="mt-2 w-full rounded-xl border border-ink/10 px-3 py-2 text-sm"
+                className="mt-2 admin-input"
               />
             </div>
 
@@ -195,13 +195,13 @@ export default function AdminPlanGeneratorPage() {
                 max={730}
                 value={duration}
                 onChange={(e) => setDuration(parseInt(e.target.value || '0', 10))}
-                className="mt-2 w-full rounded-xl border border-ink/10 px-3 py-2 text-sm"
+                className="mt-2 admin-input"
               />
             </div>
 
             <div>
               <label className="text-xs font-semibold text-ink-soft uppercase tracking-wide">Rest Days</label>
-              <select value={restDay} onChange={(e) => setRestDay(e.target.value as RestDay)} className="mt-2 w-full rounded-xl border border-ink/10 px-3 py-2 text-sm">
+              <select value={restDay} onChange={(e) => setRestDay(e.target.value as RestDay)} className="mt-2 admin-input">
                 <option value="none">None - read every day</option>
                 <option value="sunday">Sunday rest</option>
                 <option value="one_per_week">One rest day per week</option>
@@ -210,7 +210,7 @@ export default function AdminPlanGeneratorPage() {
 
             <div>
               <label className="text-xs font-semibold text-ink-soft uppercase tracking-wide">Group Type</label>
-              <select value={groupType} onChange={(e) => setGroupType(e.target.value as GroupType)} className="mt-2 w-full rounded-xl border border-ink/10 px-3 py-2 text-sm">
+              <select value={groupType} onChange={(e) => setGroupType(e.target.value as GroupType)} className="mt-2 admin-input">
                 <option value="adult">Adult</option>
                 <option value="youth">Youth</option>
                 <option value="children">Children</option>
@@ -253,7 +253,7 @@ export default function AdminPlanGeneratorPage() {
                 <Stat label="Chapters/Day" value={preview.approx_chapters_per_day} />
               </div>
 
-              <div className="max-h-80 overflow-y-auto rounded-xl border border-ink/5 mb-4">
+              <div className="max-h-80 overflow-y-auto overflow-x-auto rounded-xl border border-ink/5 mb-4">
                 <table className="w-full text-xs">
                   <thead className="sticky top-0 bg-background">
                     <tr>
@@ -306,7 +306,7 @@ export default function AdminPlanGeneratorPage() {
                     >
                       {committing ? 'Saving...' : 'Yes, replace the plan'}
                     </button>
-                    <button onClick={() => setConfirmCommit(false)} className="flex-1 bg-white border border-ink/10 font-semibold py-2.5 rounded-xl">
+                    <button onClick={() => setConfirmCommit(false)} className="flex-1 bg-surface border border-ink/10 font-semibold py-2.5 rounded-xl">
                       Cancel
                     </button>
                   </div>

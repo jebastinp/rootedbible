@@ -86,7 +86,7 @@ export default function AdminMembersPage() {
                 setPage(1)
               }}
               placeholder="Search by name, ID, or phone..."
-              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-ink/10 bg-surface text-sm focus:outline-none focus:ring-2 focus:ring-secondary/40"
+              className="admin-input pl-10"
             />
           </div>
           <select
@@ -95,7 +95,7 @@ export default function AdminMembersPage() {
               setRole(e.target.value as UserRole | '')
               setPage(1)
             }}
-            className="px-4 py-2.5 rounded-xl border border-ink/10 bg-surface text-sm"
+            className="admin-input !w-auto"
           >
             <option value="">All Roles</option>
             <option value="member">Member</option>
@@ -109,7 +109,7 @@ export default function AdminMembersPage() {
               setStatus(e.target.value as UserStatus | '')
               setPage(1)
             }}
-            className="px-4 py-2.5 rounded-xl border border-ink/10 bg-surface text-sm"
+            className="admin-input !w-auto"
           >
             <option value="">All Status</option>
             <option value="active">Active</option>
@@ -118,7 +118,8 @@ export default function AdminMembersPage() {
           </select>
         </div>
 
-        <div className="bg-surface rounded-3xl shadow-soft overflow-hidden">
+        <div className="bg-surface rounded-3xl shadow-soft border border-ink/5 overflow-hidden">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-ink/5 text-left text-ink-soft text-xs uppercase tracking-wide">
@@ -204,6 +205,7 @@ export default function AdminMembersPage() {
               )}
             </tbody>
           </table>
+          </div>
         </div>
 
         {/* Pagination */}
@@ -285,7 +287,7 @@ function MemberFormModal({ user, onClose, onSaved }: { user: User | null; onClos
 
   return (
     <div className="fixed inset-0 bg-ink/40 backdrop-blur-sm flex items-center justify-center z-50 px-4">
-      <div className="bg-surface rounded-3xl shadow-card w-full max-w-md p-6">
+      <div className="glass rounded-3xl shadow-card border border-ink/5 w-full max-w-md p-6">
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-semibold">{user ? 'Edit Member' : 'Add Member'}</h2>
           <button onClick={onClose} className="text-ink-soft hover:text-ink">
@@ -301,7 +303,7 @@ function MemberFormModal({ user, onClose, onSaved }: { user: User | null; onClos
               value={form.user_id}
               onChange={(e) => setForm({ ...form, user_id: e.target.value })}
               placeholder="e.g. REH001"
-              className="w-full px-4 py-2.5 rounded-xl border border-ink/10 disabled:bg-ink/5 focus:outline-none focus:ring-2 focus:ring-secondary/40"
+              className="admin-input disabled:bg-ink/5"
             />
           </div>
           <div>
@@ -310,7 +312,7 @@ function MemberFormModal({ user, onClose, onSaved }: { user: User | null; onClos
               required
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
-              className="w-full px-4 py-2.5 rounded-xl border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary/40"
+              className="admin-input"
             />
           </div>
           <div>
@@ -318,7 +320,7 @@ function MemberFormModal({ user, onClose, onSaved }: { user: User | null; onClos
             <input
               value={form.phone ?? ''}
               onChange={(e) => setForm({ ...form, phone: e.target.value })}
-              className="w-full px-4 py-2.5 rounded-xl border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary/40"
+              className="admin-input"
             />
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -327,7 +329,7 @@ function MemberFormModal({ user, onClose, onSaved }: { user: User | null; onClos
               <select
                 value={form.role}
                 onChange={(e) => setForm({ ...form, role: e.target.value as any })}
-                className="w-full px-4 py-2.5 rounded-xl border border-ink/10"
+                className="admin-input"
               >
                 <option value="member">Member</option>
                 <option value="leader">Leader</option>
@@ -341,7 +343,7 @@ function MemberFormModal({ user, onClose, onSaved }: { user: User | null; onClos
                 <select
                   value={form.status}
                   onChange={(e) => setForm({ ...form, status: e.target.value as any })}
-                  className="w-full px-4 py-2.5 rounded-xl border border-ink/10"
+                  className="admin-input"
                 >
                   <option value="active">Active</option>
                   <option value="inactive">Inactive</option>

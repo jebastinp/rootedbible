@@ -9,6 +9,7 @@ from app.models.user import User
 from app.schemas.challenge import (
     ChallengeCreate, ChallengeUpdate, ChallengeAdminOut, GroupDetailOut,
     RewardCreate, RewardOut, ChallengeMemberAdminOut, ChallengeRequestAdminOut,
+    LeaderboardConfigOut, LeaderboardConfigUpdate,
 )
 from app.services.challenge_service import ChallengeService
 
@@ -109,3 +110,13 @@ def list_rewards(challenge_id: uuid.UUID, current_user: User = Depends(require_a
 def delete_reward(reward_id: uuid.UUID, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     ChallengeService(db).admin_delete_reward(current_user.id, reward_id)
     return {"success": True}
+
+
+@router.get("/{challenge_id}/leaderboard-config", response_model=list[LeaderboardConfigOut], summary="Ranking limits per scope (Family=Top1, others=Top3 by default)")
+def list_leaderboard_config(challenge_id: uuid.UUID, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    return ChallengeService(db).admin_list_leaderboard_config(challenge_id)
+
+
+@router.put("/{challenge_id}/leaderboard-config/{scope}", response_model=LeaderboardConfigOut, summary="Override the ranking limit for one leaderboard scope")
+def set_leaderboard_config(challenge_id: uuid.UUID, scope: str, payload: LeaderboardConfigUpdate, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    return ChallengeService(db).admin_set_leaderboard_config(current_user.id, challenge_id, scope, payload)

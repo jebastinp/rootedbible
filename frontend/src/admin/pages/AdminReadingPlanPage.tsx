@@ -64,11 +64,12 @@ export default function AdminReadingPlanPage() {
               setPage(1)
             }}
             placeholder="Search by book name..."
-            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-ink/10 bg-surface text-sm focus:outline-none focus:ring-2 focus:ring-secondary/40"
+            className="admin-input pl-10"
           />
         </div>
 
-        <div className="bg-surface rounded-3xl shadow-soft overflow-hidden">
+        <div className="bg-surface rounded-3xl shadow-soft border border-ink/5 overflow-hidden">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-ink/5 text-left text-ink-soft text-xs uppercase tracking-wide">
@@ -127,6 +128,7 @@ export default function AdminReadingPlanPage() {
               )}
             </tbody>
           </table>
+          </div>
         </div>
 
         <div className="flex items-center justify-between mt-4 text-sm text-ink-soft">
@@ -196,7 +198,7 @@ function PlanDayModal({ day, onClose, onSaved }: { day: ReadingPlanDay | null; o
 
   return (
     <div className="fixed inset-0 bg-ink/40 backdrop-blur-sm flex items-center justify-center z-50 px-4">
-      <div className="bg-surface rounded-3xl shadow-card w-full max-w-md p-6">
+      <div className="glass rounded-3xl shadow-card border border-ink/5 w-full max-w-md p-6">
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-semibold">{day ? 'Edit Reading Day' : 'Add Reading Day'}</h2>
           <button onClick={onClose} className="text-ink-soft hover:text-ink">
@@ -214,7 +216,7 @@ function PlanDayModal({ day, onClose, onSaved }: { day: ReadingPlanDay | null; o
                 disabled={!!day}
                 value={form.day_number}
                 onChange={(e) => setForm({ ...form, day_number: e.target.value as any })}
-                className="w-full px-4 py-2.5 rounded-xl border border-ink/10 disabled:bg-ink/5"
+                className="admin-input disabled:bg-ink/5"
               />
             </div>
             <div>
@@ -224,7 +226,7 @@ function PlanDayModal({ day, onClose, onSaved }: { day: ReadingPlanDay | null; o
                 type="date"
                 value={form.reading_date}
                 onChange={(e) => setForm({ ...form, reading_date: e.target.value })}
-                className="w-full px-4 py-2.5 rounded-xl border border-ink/10"
+                className="admin-input"
               />
             </div>
           </div>
@@ -234,7 +236,7 @@ function PlanDayModal({ day, onClose, onSaved }: { day: ReadingPlanDay | null; o
               value={form.old_testament}
               onChange={(e) => setForm({ ...form, old_testament: e.target.value })}
               placeholder="e.g. Genesis 1-3"
-              className="w-full px-4 py-2.5 rounded-xl border border-ink/10"
+              className="admin-input"
             />
           </div>
           <div>
@@ -243,7 +245,7 @@ function PlanDayModal({ day, onClose, onSaved }: { day: ReadingPlanDay | null; o
               value={form.new_testament}
               onChange={(e) => setForm({ ...form, new_testament: e.target.value })}
               placeholder="e.g. Matthew 1"
-              className="w-full px-4 py-2.5 rounded-xl border border-ink/10"
+              className="admin-input"
             />
           </div>
           <div>
@@ -254,7 +256,7 @@ function PlanDayModal({ day, onClose, onSaved }: { day: ReadingPlanDay | null; o
               min={1}
               value={form.estimated_minutes}
               onChange={(e) => setForm({ ...form, estimated_minutes: e.target.value as any })}
-              className="w-full px-4 py-2.5 rounded-xl border border-ink/10"
+              className="admin-input"
             />
           </div>
           <button

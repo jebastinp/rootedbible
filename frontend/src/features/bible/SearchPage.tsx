@@ -87,7 +87,7 @@ export default function SearchPage() {
           )}
 
           {data?.results.length ? (
-            <div className="bg-surface rounded-3xl shadow-soft divide-y divide-ink/5 overflow-hidden">
+            <div className="bg-surface rounded-3xl shadow-soft border border-ink/5 divide-y divide-ink/5 overflow-hidden">
               {data.results.map((r) => (
                 <button
                   key={r.verse_id}

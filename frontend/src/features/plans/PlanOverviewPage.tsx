@@ -66,7 +66,7 @@ export default function PlanOverviewPage() {
           <p className="text-sm text-ink-soft">No reading plan has been set up yet. Check back once your church starts one.</p>
         </div>
       ) : (
-        <div className="bg-surface rounded-3xl shadow-soft divide-y divide-ink/5 overflow-hidden">
+        <div className="bg-surface rounded-3xl shadow-soft border border-ink/5 divide-y divide-ink/5 overflow-hidden">
           {days.map((day) => {
             const hasReading = day.passages.length > 0
             return (

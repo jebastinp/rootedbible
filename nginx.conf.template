@@ -17,5 +17,12 @@ server {
     }
 
     gzip on;
+    # Without gzip_proxied, nginx never compresses responses coming from the
+    # proxy_pass'd /api/ location (its default is "off") - only the static
+    # frontend bundle was actually being compressed. "any" also covers the
+    # Bible chapter/version JSON payloads, which are the largest API responses.
+    gzip_proxied any;
+    gzip_comp_level 5;
+    gzip_min_length 512;
     gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
 }

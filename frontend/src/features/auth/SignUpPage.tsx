@@ -84,7 +84,7 @@ export default function SignUpPage() {
 
   return (
     <AuthShell showTagline={false}>
-      <div className="bg-surface rounded-3xl shadow-card p-7">
+      <div className="bg-surface rounded-3xl shadow-card border border-ink/5 p-7">
         <h2 className="text-xl font-semibold mb-1 text-center">Create your Rooted account</h2>
         <p className="text-sm text-ink-soft mb-6 text-center">Start your journey in God's Word.</p>
 

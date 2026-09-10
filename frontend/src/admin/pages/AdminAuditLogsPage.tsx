@@ -33,7 +33,8 @@ export default function AdminAuditLogsPage() {
         ) : !logs?.length ? (
           <p className="text-sm text-ink-soft text-center py-16">No activity recorded yet.</p>
         ) : (
-          <div className="bg-surface rounded-2xl shadow-soft overflow-hidden">
+          <div className="bg-surface rounded-2xl shadow-soft border border-ink/5 overflow-hidden">
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-ink/5 text-left text-xs font-semibold text-ink-soft uppercase tracking-wide">
@@ -54,6 +55,7 @@ export default function AdminAuditLogsPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         )}
       </div>

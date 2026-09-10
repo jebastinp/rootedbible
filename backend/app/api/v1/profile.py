@@ -25,6 +25,12 @@ def my_profile(current_user: User = Depends(get_current_user), db: Session = Dep
             "joined_date": user.joined_date,
             "date_of_birth": user.date_of_birth,
             "created_at": user.created_at,
+            "house_no": user.house_no,
+            "street_name": user.street_name,
+            "city_name": user.city_name,
+            "state_name": user.state_name,
+            "postcode": user.postcode,
+            "country": user.country,
             "current_streak": stats.current_streak if stats else 0,
             "longest_streak": stats.longest_streak if stats else 0,
             "days_completed": stats.days_completed if stats else 0,
@@ -33,7 +39,7 @@ def my_profile(current_user: User = Depends(get_current_user), db: Session = Dep
     )
 
 
-@router.patch("/me", summary="Update my own profile (name, phone, photo, DOB)")
+@router.patch("/me", summary="Update my own profile (name, phone, photo, DOB, address)")
 def update_my_profile(
     payload: UserUpdate,
     current_user: User = Depends(get_current_user),

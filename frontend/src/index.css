@@ -4,7 +4,9 @@
 
 @layer base {
   :root {
-    /* Light palette (warm ivory, premium green) */
+    /* Light palette (warm ivory, premium green). surface-elevated/float sit
+       one shade warmer than surface so nested/floating chrome (nav, modal
+       headers) reads as a hair "above" a plain card even in light mode. */
     --color-primary: 11 93 59;
     --color-primary-light: 18 118 76;
     --color-primary-dark: 8 67 42;
@@ -12,23 +14,29 @@
     --color-accent: 168 214 114;
     --color-background: 248 244 236;
     --color-surface: 255 255 255;
+    --color-surface-elevated: 255 255 255;
+    --color-surface-float: 255 255 255;
     --color-ink: 27 27 27;
     --color-ink-soft: 107 114 128;
     --color-gold: 212 169 79;
     --color-gold-light: 232 200 120;
   }
 
-  /* Dark palette - a dedicated dark design, not an inversion. Warm charcoal
-     surfaces, soft (not pure) white text, and a brighter green so the brand
-     accent stays legible as text on dark backgrounds. */
+  /* Dark palette - a dedicated dark design, not an inversion. Layered
+     surfaces (background -> card -> elevated card -> floating nav/modal)
+     create depth without ever going pure black or using flat inverted
+     colors. Soft (not pure) white text, and a brighter green so the brand
+     accent stays legible on dark backgrounds. */
   .dark {
     --color-primary: 92 196 140;
     --color-primary-light: 130 217 171;
     --color-primary-dark: 58 158 108;
     --color-secondary: 140 201 92;
     --color-accent: 168 214 114;
-    --color-background: 19 21 18;
-    --color-surface: 30 33 28;
+    --color-background: 11 15 13;        /* level 0 - app background,  #0B0F0D */
+    --color-surface: 20 26 23;           /* level 1 - card surface,    #141A17 */
+    --color-surface-elevated: 27 35 31;  /* level 2 - elevated card,   #1B231F */
+    --color-surface-float: 32 42 37;     /* level 3 - nav/modal/sheet, #202A25 */
     --color-ink: 237 237 231;
     --color-ink-soft: 156 161 150;
     --color-gold: 224 186 104;
@@ -64,29 +72,33 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
-  /* Apple-style glass surface - used sparingly (nav, sheets, floating controls). */
+  /* Apple-style glass surface - used sparingly (nav, sheets, floating controls).
+     Uses the floating-tier token so these sit visibly "above" plain cards,
+     especially in dark mode's layered surface system. */
   .glass {
-    background: rgb(var(--color-surface) / 0.75);
+    background: rgb(var(--color-surface-float) / 0.8);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
   }
   @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     .glass {
-      background: rgb(var(--color-surface) / 0.96);
+      background: rgb(var(--color-surface-float) / 0.97);
     }
   }
   /* Admin dashboard form fields - desktop-first inputs, selects, textareas. */
   .admin-input {
     width: 100%;
     padding: 0.625rem 1rem;
-    border-radius: 0.75rem;
+    border-radius: 0.875rem; /* 14px - matches the input tier of the Rooted radius scale */
     border: 1px solid rgb(var(--color-ink) / 0.1);
     background: rgb(var(--color-surface));
     font-size: 0.875rem;
+    transition: box-shadow 0.15s ease, border-color 0.15s ease;
   }
   .admin-input:focus {
     outline: none;
-    box-shadow: 0 0 0 2px rgb(var(--color-secondary) / 0.4);
+    border-color: rgb(var(--color-secondary) / 0.5);
+    box-shadow: 0 0 0 3px rgb(var(--color-secondary) / 0.25);
   }
 }
 

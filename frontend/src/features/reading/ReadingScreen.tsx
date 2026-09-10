@@ -3,13 +3,13 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   ArrowLeft, ChevronLeft, ChevronRight, Settings2, Search, ChevronDown,
-  Highlighter, StickyNote, Bookmark as BookmarkIcon, Copy, Share2, X, CheckCircle2, Loader2, Circle,
+  Highlighter, StickyNote, Bookmark as BookmarkIcon, Copy, Share2, X, CheckCircle2, Loader2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   useBibleChapter, useChapterNav, useBibleVersions,
   useBookmarks, useCreateBookmark, useDeleteBookmark,
-  useSetReadingPosition, useMarkChapterComplete, useCompletedChapters,
+  useSetReadingPosition,
 } from '@/lib/bible'
 import { useNotes, useCreateNote, useHighlights, useCreateHighlight, type Note, type Highlight } from '@/lib/notes'
 import { useMarkCompleted } from '@/features/home/useHome'
@@ -81,8 +81,6 @@ export default function ReadingScreen() {
   const createBookmark = useCreateBookmark()
   const deleteBookmark = useDeleteBookmark()
   const setReadingPosition = useSetReadingPosition()
-  const markChapterComplete = useMarkChapterComplete()
-  const { data: completedChapters } = useCompletedChapters(chapterData?.book_id)
   const markPlanCompleted = useMarkCompleted()
 
   const verseIdsInChapter = useMemo(() => new Set((chapterData?.verses ?? []).map((v) => v.id)), [chapterData])
@@ -257,18 +255,6 @@ export default function ReadingScreen() {
     }
   }
 
-  async function handleMarkChapterComplete() {
-    if (!chapterData || !selectedVersion) return
-    try {
-      const result = await markChapterComplete.mutateAsync({ translation_id: selectedVersion.id, book_id: chapterData.book_id, chapter_number: chapterNumber })
-      if (!result.already_completed) toast.success('Chapter marked complete.')
-    } catch (err) {
-      toast.error(getApiErrorMessage(err))
-    }
-  }
-
-  const isStandaloneComplete = !planId && !!completedChapters?.includes(chapterNumber)
-
   return (
     <div className="min-h-screen flex flex-col bg-background text-ink transition-colors">
       {/* Header */}
@@ -343,7 +329,7 @@ export default function ReadingScreen() {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className={cn(settings.font === 'serif' ? '' : 'font-sans')}
+            className={cn('space-y-3', settings.font === 'serif' ? '' : 'font-sans')}
             style={{ fontSize: FONT_SIZE_PX[settings.fontSize], lineHeight: LINE_HEIGHT[settings.lineSpacing] }}
           >
             {chapterData.verses.map((verse) => {
@@ -351,22 +337,23 @@ export default function ReadingScreen() {
               const hl = highlightByVerseNumber.get(verse.verse_number)
               const hasNote = noteByVerseId.has(verse.id)
               return (
-                <span
+                <div
                   key={verse.id}
                   id={`verse-${verse.verse_number}`}
                   onClick={() => toggleVerse(verse.verse_number)}
                   className={cn(
-                    'cursor-pointer rounded transition-colors',
+                    'flex gap-2.5 cursor-pointer rounded-lg px-1.5 -mx-1.5 py-0.5 transition-colors',
                     isSelected && 'bg-primary/20',
                     !isSelected && hl && HIGHLIGHT_BG[hl.color],
                     flashVerse === verse.verse_number && 'ring-2 ring-secondary'
                   )}
                 >
-                  <sup className="text-[0.6em] font-semibold opacity-60 mr-0.5">{verse.verse_number}</sup>
-                  {verse.text}
-                  {hasNote && <StickyNote size={12} className="inline-block ml-1 mb-1 opacity-60" aria-label="Has a note" />}
-                  {' '}
-                </span>
+                  <span className="text-[0.7em] font-semibold opacity-60 shrink-0 pt-[0.2em] tabular-nums">{verse.verse_number}</span>
+                  <span>
+                    {verse.text}
+                    {hasNote && <StickyNote size={12} className="inline-block ml-1 mb-1 opacity-60" aria-label="Has a note" />}
+                  </span>
+                </div>
               )
             })}
           </motion.div>
@@ -436,6 +423,10 @@ export default function ReadingScreen() {
       {/* Bottom nav */}
       {selectedVerses.size === 0 && (
         <div className="glass safe-bottom sticky bottom-0 border-t border-ink/5 px-4 py-3 space-y-2">
+          {/* Quiz and completion only apply to a Church Challenge / reading
+              plan day (arrived at via Today's Reading, carrying ?plan=).
+              Browsing the Bible directly (via the Bible tab) is just
+              reading - no quiz, no completion button. */}
           {planId && isLastAssignedChapter && (
             <button
               onClick={handleMarkComplete}
@@ -443,24 +434,6 @@ export default function ReadingScreen() {
               className="w-full flex items-center justify-center gap-2 bg-accent text-primary-dark font-bold py-3 rounded-2xl active:scale-[0.98] transition-transform disabled:opacity-60"
             >
               {markPlanCompleted.isPending ? <Loader2 size={18} className="animate-spin" /> : <><CheckCircle2 size={18} /> Mark Reading Complete</>}
-            </button>
-          )}
-          {!planId && chapterData && (
-            <button
-              onClick={handleMarkChapterComplete}
-              disabled={markChapterComplete.isPending || isStandaloneComplete}
-              className={cn(
-                'w-full flex items-center justify-center gap-2 font-bold py-3 rounded-2xl active:scale-[0.98] transition-transform disabled:opacity-90',
-                isStandaloneComplete ? 'bg-primary/10 text-primary' : 'bg-accent text-primary-dark'
-              )}
-            >
-              {markChapterComplete.isPending ? (
-                <Loader2 size={18} className="animate-spin" />
-              ) : isStandaloneComplete ? (
-                <><CheckCircle2 size={18} /> Completed</>
-              ) : (
-                <><Circle size={18} /> Mark Chapter Complete</>
-              )}
             </button>
           )}
 
@@ -474,13 +447,17 @@ export default function ReadingScreen() {
               <ChevronLeft size={20} />
             </button>
 
-            <button
-              onClick={() => navigate(`/quiz/${chapterData?.id}${planId ? `?plan=${planId}` : ''}`)}
-              disabled={!chapterData}
-              className="flex-1 bg-primary text-white font-semibold py-3 rounded-2xl active:scale-[0.98] disabled:opacity-50"
-            >
-              Take the Quiz
-            </button>
+            {planId ? (
+              <button
+                onClick={() => navigate(`/quiz/${chapterData?.id}?plan=${planId}`)}
+                disabled={!chapterData}
+                className="flex-1 bg-primary text-white font-semibold py-3 rounded-2xl active:scale-[0.98] disabled:opacity-50"
+              >
+                Take the Quiz
+              </button>
+            ) : (
+              <div className="flex-1" />
+            )}
 
             <button
               disabled={!nav?.next}

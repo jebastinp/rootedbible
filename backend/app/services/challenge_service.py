@@ -13,15 +13,25 @@ from app.models.challenge import (
     JoinRequest, ChallengeReward, Encouragement,
     ChallengeMemberStatus, GroupMemberRole, GroupMemberStatus, RequestStatus, RequestType,
 )
+from app.models.leaderboard import LeaderboardConfig
+from app.models.group import RootedGroup, UserGroupMembership
 from app.repositories.reading_plan_repository import ReadingPlanRepository
 from app.services.reading_status import completed_today_user_ids
 from app.services import audit_service
+from app.services.notification_service import notify
 from app.schemas.challenge import (
     RootedIdLookupOut, ChallengeCreate, ChallengeUpdate, ChallengeAdminOut,
     ChallengeSummaryOut, TodayReadingOut, ChallengeGroupSummary, ChallengeDetailOut,
     GroupCreate, GroupMemberOut, GroupDetailOut, JoinRequestOut, RewardCreate, RewardOut, RewardEarnedOut,
-    EncouragementCreate,
+    EncouragementCreate, GroupAdminSummaryOut,
+    LeaderboardConfigOut, LeaderboardConfigUpdate, LeaderboardEntryOut, LeaderboardOut,
 )
+
+# Product rule: Family ranks show only the #1 spot, every other scope
+# (individual participants and each Rooted Group) shows the top 3 -
+# admin can override per challenge via LeaderboardConfig.
+_DEFAULT_RANKING_LIMITS = {"family": 1}
+_DEFAULT_RANKING_LIMIT = 3
 
 _ENCOURAGEMENT_MESSAGES = {
     "Keep going.", "Stay rooted.", "Great job completing today's reading.",
@@ -63,8 +73,8 @@ class ChallengeService:
         challenge = ChurchChallenge(
             name=payload.name, church_name=payload.church_name, description=payload.description,
             reading_plan_id=payload.reading_plan_id, start_date=payload.start_date, end_date=payload.end_date,
-            participant_limit=payload.participant_limit, allow_families=payload.allow_families, family_limit=payload.family_limit,
-            allow_buddies=payload.allow_buddies, buddy_limit=payload.buddy_limit, quiz_enabled=payload.quiz_enabled,
+            participant_limit=payload.participant_limit, allow_families=payload.allow_families,
+            allow_buddies=payload.allow_buddies, quiz_enabled=payload.quiz_enabled,
             rewards_enabled=payload.rewards_enabled, status=payload.status, created_by=actor_id,
         )
         self.db.add(challenge)
@@ -96,8 +106,8 @@ class ChallengeService:
                 id=c.id, name=c.name, church_name=c.church_name, description=c.description,
                 reading_plan_id=c.reading_plan_id, start_date=c.start_date, end_date=c.end_date,
                 participant_limit=c.participant_limit, participant_count=self._participant_count(c.id),
-                status=c.status, allow_families=c.allow_families, family_limit=c.family_limit,
-                allow_buddies=c.allow_buddies, buddy_limit=c.buddy_limit, quiz_enabled=c.quiz_enabled,
+                status=c.status, allow_families=c.allow_families,
+                allow_buddies=c.allow_buddies, quiz_enabled=c.quiz_enabled,
                 rewards_enabled=c.rewards_enabled, created_at=c.created_at,
             )
             for c in challenges
@@ -148,10 +158,12 @@ class ChallengeService:
             raise ConflictError("Your request to join is already pending.")
 
         # Lock the challenge row so two simultaneous joins at capacity can't both succeed.
+        # participant_limit of None means unlimited - never gate on it.
         self.db.query(ChurchChallenge).filter(ChurchChallenge.id == challenge_id).with_for_update().first()
-        count = self._participant_count(challenge_id)
-        if count >= challenge.participant_limit:
-            raise ConflictError("Challenge is full.")
+        if challenge.participant_limit is not None:
+            count = self._participant_count(challenge_id)
+            if count >= challenge.participant_limit:
+                raise ConflictError("Challenge is full.")
 
         if existing_member:
             existing_member.status = ChallengeMemberStatus.pending.value
@@ -172,20 +184,24 @@ class ChallengeService:
 
         if approve:
             self.db.query(ChurchChallenge).filter(ChurchChallenge.id == request.challenge_id).with_for_update().first()
-            count = self._participant_count(request.challenge_id)
             challenge = self._get_challenge(request.challenge_id)
-            if count >= challenge.participant_limit:
-                raise ConflictError("Challenge is full.")
+            if challenge.participant_limit is not None:
+                count = self._participant_count(request.challenge_id)
+                if count >= challenge.participant_limit:
+                    raise ConflictError("Challenge is full.")
             if member:
                 member.status = ChallengeMemberStatus.active.value
                 member.joined_at = datetime.now(timezone.utc)
             request.status = RequestStatus.approved.value
             audit_service.record(self.db, actor_id, "challenge_member_approved", "challenge_member", request.challenge_id, {"user_id": str(request.requester_id)})
+            notify(self.db, request.requester_id, "challenge_request_approved", f"You're in! {challenge.name}", link=f"/community/challenges/{request.challenge_id}")
         else:
             if member:
                 self.db.delete(member)
             request.status = RequestStatus.declined.value
             audit_service.record(self.db, actor_id, "challenge_member_declined", "challenge_member", request.challenge_id, {"user_id": str(request.requester_id)})
+            challenge = self._get_challenge(request.challenge_id)
+            notify(self.db, request.requester_id, "challenge_request_declined", f"Your request to join {challenge.name} was declined")
 
         request.responded_at = datetime.now(timezone.utc)
         request.responded_by_id = actor_id
@@ -295,8 +311,8 @@ class ChallengeService:
                 id=c.id, name=c.name, church_name=c.church_name, description=c.description,
                 reading_plan_id=c.reading_plan_id, start_date=c.start_date, end_date=c.end_date,
                 participant_limit=c.participant_limit, participant_count=self._participant_count(c.id),
-                status=c.status, allow_families=c.allow_families, family_limit=c.family_limit,
-                allow_buddies=c.allow_buddies, buddy_limit=c.buddy_limit, quiz_enabled=c.quiz_enabled,
+                status=c.status, allow_families=c.allow_families,
+                allow_buddies=c.allow_buddies, quiz_enabled=c.quiz_enabled,
                 rewards_enabled=c.rewards_enabled, created_at=c.created_at,
             )
             for c in challenges if c.id not in my_ids
@@ -326,7 +342,7 @@ class ChallengeService:
             family = self.db.query(Family).filter(Family.id == family_member.family_id).first()
             active_ids = [m.user_id for m in self.db.query(FamilyMember).filter(FamilyMember.family_id == family.id, FamilyMember.status == GroupMemberStatus.active.value).all()]
             completed = completed_today_user_ids(self.db, active_ids)
-            family_summary = ChallengeGroupSummary(id=family.id, name=family.name, member_count=len(active_ids), max_members=challenge.family_limit, completed_today_count=len(completed))
+            family_summary = ChallengeGroupSummary(id=family.id, name=family.name, member_count=len(active_ids), max_members=None, completed_today_count=len(completed))
 
         buddy_summary = None
         buddy_member = self.db.query(BuddyMember).join(BuddyGroup, BuddyGroup.id == BuddyMember.buddy_group_id).filter(BuddyGroup.challenge_id == challenge_id, BuddyMember.user_id == user_id, BuddyMember.status == GroupMemberStatus.active.value).first()
@@ -334,7 +350,7 @@ class ChallengeService:
             group = self.db.query(BuddyGroup).filter(BuddyGroup.id == buddy_member.buddy_group_id).first()
             active_ids = [m.user_id for m in self.db.query(BuddyMember).filter(BuddyMember.buddy_group_id == group.id, BuddyMember.status == GroupMemberStatus.active.value).all()]
             completed = completed_today_user_ids(self.db, active_ids)
-            buddy_summary = ChallengeGroupSummary(id=group.id, name=group.name, member_count=len(active_ids), max_members=challenge.buddy_limit, completed_today_count=len(completed))
+            buddy_summary = ChallengeGroupSummary(id=group.id, name=group.name, member_count=len(active_ids), max_members=None, completed_today_count=len(completed))
 
         return ChallengeDetailOut(
             id=challenge.id, name=challenge.name, church_name=challenge.church_name, description=challenge.description,
@@ -358,37 +374,62 @@ class ChallengeService:
     def _group_fk(self, kind: str) -> str:
         return "family_id" if kind == "family" else "buddy_group_id"
 
-    def _limit_for(self, kind: str, challenge: ChurchChallenge) -> int:
-        return challenge.family_limit if kind == "family" else challenge.buddy_limit
-
     def _allowed_for(self, kind: str, challenge: ChurchChallenge) -> bool:
         return challenge.allow_families if kind == "family" else challenge.allow_buddies
 
-    def create_group(self, kind: str, user_id: uuid.UUID, challenge_id: uuid.UUID, payload: GroupCreate):
-        challenge = self._get_challenge(challenge_id)
-        self._require_active_participant(challenge_id, user_id)
-        if not self._allowed_for(kind, challenge):
-            raise ValidationError(f"{'Families' if kind == 'family' else 'Buddy groups'} are not enabled for this challenge.")
+    def list_my_groups(self, kind: str, user_id: uuid.UUID) -> list[GroupDetailOut]:
+        MemberModel = self._member_model(kind)
+        fk = self._group_fk(kind)
+        group_ids = [
+            getattr(row, fk)
+            for row in self.db.query(MemberModel).filter(MemberModel.user_id == user_id, MemberModel.status == GroupMemberStatus.active.value).all()
+        ]
+        return [self.get_group_detail(kind, user_id, group_id) for group_id in group_ids]
+
+    def admin_list_all_groups(self, kind: str) -> list[GroupAdminSummaryOut]:
+        """Super Admin's platform-wide view - every Family/Buddy Group,
+        regardless of privacy or whether it's linked to a Church Challenge.
+        Private groups are never visible to other normal users, but this
+        endpoint is admin-only (see require_admin on the route)."""
+        GroupModel = self._group_model(kind)
+        MemberModel = self._member_model(kind)
+        fk = self._group_fk(kind)
+
+        groups = self.db.query(GroupModel).order_by(GroupModel.created_at.desc()).all()
+        out = []
+        for group in groups:
+            owner = self.db.query(User).filter(User.id == group.owner_id).first()
+            member_count = self.db.query(MemberModel).filter(getattr(MemberModel, fk) == group.id, MemberModel.status == GroupMemberStatus.active.value).count()
+            challenge_name = None
+            if group.challenge_id:
+                challenge = self.db.query(ChurchChallenge).filter(ChurchChallenge.id == group.challenge_id).first()
+                challenge_name = challenge.name if challenge else None
+            out.append(GroupAdminSummaryOut(
+                id=group.id, name=group.name, owner_user_id=owner.user_id if owner else "?", owner_name=owner.name if owner else "?",
+                member_count=member_count, challenge_id=group.challenge_id, challenge_name=challenge_name,
+                privacy=getattr(group, "privacy", "private"), created_at=group.created_at,
+            ))
+        return out
+
+    def create_group(self, kind: str, user_id: uuid.UUID, payload: GroupCreate, challenge_id: uuid.UUID | None = None):
+        """Family/Buddy Group are standalone - `challenge_id` is an optional
+        opt-in link to a single Church Challenge this group is currently
+        participating in. No size cap either way."""
+        if challenge_id is not None:
+            challenge = self._get_challenge(challenge_id)
+            self._require_active_participant(challenge_id, user_id)
+            if not self._allowed_for(kind, challenge):
+                raise ValidationError(f"{'Families' if kind == 'family' else 'Buddy groups'} are not enabled for this challenge.")
 
         GroupModel = self._group_model(kind)
         MemberModel = self._member_model(kind)
         fk = self._group_fk(kind)
 
-        # A user may own/belong to only one Family and one Buddy group per challenge.
-        existing = (
-            self.db.query(MemberModel)
-            .join(GroupModel, getattr(GroupModel, "id") == getattr(MemberModel, fk))
-            .filter(GroupModel.challenge_id == challenge_id, MemberModel.user_id == user_id, MemberModel.status == GroupMemberStatus.active.value)
-            .first()
-        )
-        if existing:
-            raise ConflictError(f"You already belong to a {'Family' if kind == 'family' else 'Buddy group'} in this challenge.")
-
-        group = GroupModel(challenge_id=challenge_id, name=payload.name, owner_id=user_id, **({"description": payload.description} if kind == "family" else {}))
+        group = GroupModel(challenge_id=challenge_id, name=payload.name, owner_id=user_id, description=payload.description)
         self.db.add(group)
         self.db.flush()
         self.db.add(MemberModel(**{fk: group.id, "user_id": user_id, "role": GroupMemberRole.owner.value, "status": GroupMemberStatus.active.value}))
-        audit_service.record(self.db, user_id, f"{kind}_created", kind, group.id, {"name": group.name, "challenge_id": str(challenge_id)})
+        audit_service.record(self.db, user_id, f"{kind}_created", kind, group.id, {"name": group.name, "challenge_id": str(challenge_id) if challenge_id else None})
         self.db.commit()
         self.db.refresh(group)
         return group
@@ -409,7 +450,6 @@ class ChallengeService:
         if not group:
             raise NotFoundError("Group not found.")
         my_membership = self._require_group_membership(kind, group_id, user_id)
-        challenge = self._get_challenge(group.challenge_id)
 
         rows = (
             self.db.query(MemberModel, User)
@@ -431,7 +471,7 @@ class ChallengeService:
         return GroupDetailOut(
             id=group.id, challenge_id=group.challenge_id, name=group.name,
             description=getattr(group, "description", None), my_role=my_membership.role,
-            max_members=self._limit_for(kind, challenge), members=members,
+            max_members=None, members=members,
         )
 
     def invite_to_group(self, kind: str, actor_id: uuid.UUID, group_id: uuid.UUID, rooted_id: str) -> JoinRequest:
@@ -444,7 +484,7 @@ class ChallengeService:
         self._require_group_membership(kind, group_id, actor_id)
 
         target = self._get_user_by_rooted_id(rooted_id)
-        if not self._active_challenge_membership(group.challenge_id, target.id):
+        if group.challenge_id is not None and not self._active_challenge_membership(group.challenge_id, target.id):
             raise ValidationError(f"{target.name} is not a participant of this Church Challenge.")
 
         already_member = self.db.query(MemberModel).filter(getattr(MemberModel, fk) == group_id, MemberModel.user_id == target.id, MemberModel.status == GroupMemberStatus.active.value).first()
@@ -458,6 +498,7 @@ class ChallengeService:
         request = JoinRequest(type=kind, requester_id=actor_id, target_user_id=target.id, status=RequestStatus.pending.value, **{fk: group_id})
         self.db.add(request)
         audit_service.record(self.db, actor_id, f"{kind}_invite_sent", kind, group_id, {"target_user_id": str(target.id)})
+        notify(self.db, target.id, f"{kind}_invite", f"You've been invited to join {group.name}", link="/community/requests")
         self.db.commit()
         self.db.refresh(request)
         return request
@@ -472,15 +513,10 @@ class ChallengeService:
         GroupModel = self._group_model(kind)
         MemberModel = self._member_model(kind)
         group = self.db.query(GroupModel).filter(GroupModel.id == group_id).first()
-        challenge = self._get_challenge(group.challenge_id)
 
         if accept:
-            if not self._active_challenge_membership(group.challenge_id, user_id):
+            if group.challenge_id is not None and not self._active_challenge_membership(group.challenge_id, user_id):
                 raise ValidationError("You are no longer a participant of the parent Church Challenge.")
-            self.db.query(GroupModel).filter(GroupModel.id == group_id).with_for_update().first()
-            count = self.db.query(MemberModel).filter(getattr(MemberModel, fk) == group_id, MemberModel.status == GroupMemberStatus.active.value).count()
-            if count >= self._limit_for(kind, challenge):
-                raise ConflictError(f"{'Family' if kind == 'family' else 'Buddy group'} is full.")
 
             existing = self.db.query(MemberModel).filter(getattr(MemberModel, fk) == group_id, MemberModel.user_id == user_id).first()
             if existing:
@@ -488,8 +524,10 @@ class ChallengeService:
             else:
                 self.db.add(MemberModel(**{fk: group_id, "user_id": user_id, "role": GroupMemberRole.member.value, "status": GroupMemberStatus.active.value}))
             request.status = RequestStatus.approved.value
+            notify(self.db, request.requester_id, f"{kind}_request_approved", f"Your invitation to {group.name} was accepted", link=f"/community/{'family' if kind == 'family' else 'buddy-group'}/{group_id}")
         else:
             request.status = RequestStatus.declined.value
+            notify(self.db, request.requester_id, f"{kind}_request_declined", f"Your invitation to {group.name} was declined")
 
         request.responded_at = datetime.now(timezone.utc)
         request.responded_by_id = user_id
@@ -648,3 +686,90 @@ class ChallengeService:
         self.db.commit()
         self.db.refresh(encouragement)
         return encouragement
+
+    # -----------------------------------------------------------------
+    # Leaderboard
+    # -----------------------------------------------------------------
+    def _leaderboard_scope_labels(self) -> dict[str, str]:
+        labels = {"individual": "Individual", "family": "Family", "buddy": "Buddy Group"}
+        for g in self.db.query(RootedGroup).filter(RootedGroup.is_active.is_(True)).order_by(RootedGroup.sort_order).all():
+            labels[g.name] = g.name
+        return labels
+
+    def _default_ranking_limit(self, scope: str) -> int:
+        return _DEFAULT_RANKING_LIMITS.get(scope, _DEFAULT_RANKING_LIMIT)
+
+    def _ranking_limit(self, challenge_id: uuid.UUID, scope: str) -> int:
+        row = self.db.query(LeaderboardConfig).filter(LeaderboardConfig.challenge_id == challenge_id, LeaderboardConfig.scope == scope).first()
+        return row.ranking_limit if row else self._default_ranking_limit(scope)
+
+    def admin_list_leaderboard_config(self, challenge_id: uuid.UUID) -> list[LeaderboardConfigOut]:
+        self._get_challenge(challenge_id)
+        labels = self._leaderboard_scope_labels()
+        return [
+            LeaderboardConfigOut(scope=scope, label=label, ranking_limit=self._ranking_limit(challenge_id, scope))
+            for scope, label in labels.items()
+        ]
+
+    def admin_set_leaderboard_config(self, actor_id: uuid.UUID, challenge_id: uuid.UUID, scope: str, payload: LeaderboardConfigUpdate) -> LeaderboardConfigOut:
+        self._get_challenge(challenge_id)
+        labels = self._leaderboard_scope_labels()
+        if scope not in labels:
+            raise NotFoundError("Unknown leaderboard scope.")
+        row = self.db.query(LeaderboardConfig).filter(LeaderboardConfig.challenge_id == challenge_id, LeaderboardConfig.scope == scope).first()
+        if row:
+            row.ranking_limit = payload.ranking_limit
+        else:
+            row = LeaderboardConfig(challenge_id=challenge_id, scope=scope, ranking_limit=payload.ranking_limit)
+            self.db.add(row)
+        audit_service.record(self.db, actor_id, "leaderboard_config_updated", "church_challenge", challenge_id, {"scope": scope, "ranking_limit": payload.ranking_limit})
+        self.db.commit()
+        return LeaderboardConfigOut(scope=scope, label=labels[scope], ranking_limit=row.ranking_limit)
+
+    def get_leaderboard(self, challenge_id: uuid.UUID, scope: str) -> LeaderboardOut:
+        self._get_challenge(challenge_id)
+        labels = self._leaderboard_scope_labels()
+        if scope not in labels:
+            raise NotFoundError("Unknown leaderboard scope.")
+        limit = self._ranking_limit(challenge_id, scope)
+
+        raw: list[tuple[str, str, int]] = []  # (entry_id, name, progress_percent)
+
+        if scope == "individual":
+            members = self.db.query(ChallengeMember).filter(ChallengeMember.challenge_id == challenge_id, ChallengeMember.status == ChallengeMemberStatus.active.value).all()
+            for m in members:
+                user = self.db.query(User).filter(User.id == m.user_id).first()
+                if user:
+                    raw.append((user.user_id, user.name, self._my_progress_percent(user.id)))
+        elif scope == "family":
+            families = self.db.query(Family).filter(Family.challenge_id == challenge_id).all()
+            for fam in families:
+                members = self.db.query(FamilyMember).filter(FamilyMember.family_id == fam.id, FamilyMember.status == GroupMemberStatus.active.value).all()
+                if not members:
+                    continue
+                avg = round(sum(self._my_progress_percent(fm.user_id) for fm in members) / len(members))
+                raw.append((str(fam.id), fam.name, avg))
+        elif scope == "buddy":
+            groups = self.db.query(BuddyGroup).filter(BuddyGroup.challenge_id == challenge_id).all()
+            for grp in groups:
+                members = self.db.query(BuddyMember).filter(BuddyMember.buddy_group_id == grp.id, BuddyMember.status == GroupMemberStatus.active.value).all()
+                if not members:
+                    continue
+                avg = round(sum(self._my_progress_percent(bm.user_id) for bm in members) / len(members))
+                raw.append((str(grp.id), grp.name, avg))
+        else:
+            rooted_group = self.db.query(RootedGroup).filter(RootedGroup.name == scope).first()
+            if rooted_group:
+                member_user_ids = {m.user_id for m in self.db.query(ChallengeMember).filter(ChallengeMember.challenge_id == challenge_id, ChallengeMember.status == ChallengeMemberStatus.active.value).all()}
+                group_user_ids = {ugm.user_id for ugm in self.db.query(UserGroupMembership).filter(UserGroupMembership.group_id == rooted_group.id).all()}
+                for user_id in member_user_ids & group_user_ids:
+                    user = self.db.query(User).filter(User.id == user_id).first()
+                    if user:
+                        raw.append((user.user_id, user.name, self._my_progress_percent(user.id)))
+
+        raw.sort(key=lambda t: t[2], reverse=True)
+        entries = [
+            LeaderboardEntryOut(rank=i + 1, entry_id=entry_id, name=name, progress_percent=pct)
+            for i, (entry_id, name, pct) in enumerate(raw[:limit])
+        ]
+        return LeaderboardOut(scope=scope, label=labels[scope], ranking_limit=limit, entries=entries)

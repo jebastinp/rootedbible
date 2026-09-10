@@ -21,7 +21,7 @@ export default function DiscoverChallengesSheet({ onClose }: { onClose: () => vo
         animate={{ y: 0 }}
         exit={{ y: 300 }}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-lg bg-surface text-ink rounded-t-3xl p-5 safe-bottom space-y-4 max-h-[85vh] overflow-y-auto"
+        className="w-full max-w-lg glass text-ink rounded-t-3xl p-5 safe-bottom space-y-4 max-h-[85vh] overflow-y-auto"
       >
         <div className="flex items-center justify-between">
           <p className="font-semibold">Find a Church Challenge</p>
@@ -35,7 +35,7 @@ export default function DiscoverChallengesSheet({ onClose }: { onClose: () => vo
         ) : (
           <div className="space-y-2">
             {challenges.map((c) => {
-              const full = c.participant_count >= c.participant_limit
+              const full = c.participant_limit != null && c.participant_count >= c.participant_limit
               return (
                 <div key={c.id} className="flex items-center gap-3 bg-background rounded-2xl p-4">
                   <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
@@ -43,7 +43,7 @@ export default function DiscoverChallengesSheet({ onClose }: { onClose: () => vo
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold truncate">{c.name}</p>
-                    <p className="text-xs text-ink-soft">{c.church_name} · {c.participant_count} / {c.participant_limit}</p>
+                    <p className="text-xs text-ink-soft">{c.church_name} · {c.participant_count}{c.participant_limit ? ` / ${c.participant_limit}` : ''}</p>
                   </div>
                   <button
                     onClick={() => requestJoin(c.id, c.name)}

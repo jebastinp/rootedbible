@@ -38,7 +38,7 @@ export default function StaffLoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-6">
       <div className="w-full max-w-sm">
-        <div className="bg-surface rounded-3xl shadow-card p-7">
+        <div className="bg-surface rounded-3xl shadow-card border border-ink/5 p-7">
           <h2 className="text-xl font-semibold mb-1">Staff sign-in</h2>
           <p className="text-sm text-ink-soft mb-6">Legacy access for admins/managers only. Everyone else should use Continue with Google.</p>
 

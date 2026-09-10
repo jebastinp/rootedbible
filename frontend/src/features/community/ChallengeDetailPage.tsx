@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Loader2, Flame, Users, UserPlus, ChevronRight, Award, HelpCircle } from 'lucide-react'
+import { Loader2, Flame, Users, UserPlus, ChevronRight, Award, HelpCircle, Trophy } from 'lucide-react'
 import { toast } from 'sonner'
 import SubPageHeader from '@/components/shared/SubPageHeader'
-import { useChallengeDetail, useChallengeRewards } from './useCommunity'
+import { useChallengeDetail, useChallengeRewards, useLeaderboardScopes, useLeaderboard } from './useCommunity'
 import { useTodayReading, useMarkCompleted } from '@/features/home/useHome'
 import { getPreferredVersion } from '@/lib/preferredVersion'
 import { getApiErrorMessage } from '@/lib/api'
@@ -19,6 +19,10 @@ export default function ChallengeDetailPage() {
   const { data: rewards } = useChallengeRewards(id)
   const markCompleted = useMarkCompleted()
   const [createOpen, setCreateOpen] = useState<'family' | 'buddy' | null>(null)
+  const { data: scopes } = useLeaderboardScopes(id)
+  const [activeScope, setActiveScope] = useState<string | null>(null)
+  const scope = activeScope ?? scopes?.[0]?.scope
+  const { data: leaderboard } = useLeaderboard(id, scope)
 
   if (isLoading || !challenge) {
     return (
@@ -78,7 +82,7 @@ export default function ChallengeDetailPage() {
       </div>
 
       {/* Today's Reading */}
-      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="bg-surface rounded-3xl p-5 shadow-soft space-y-3">
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="bg-surface rounded-3xl p-5 shadow-soft border border-ink/5 space-y-3">
         <p className="text-xs font-semibold text-ink-soft uppercase tracking-wide">Today's Reading</p>
         {challenge.today ? (
           <>
@@ -110,14 +114,14 @@ export default function ChallengeDetailPage() {
 
       {/* Progress / Streak */}
       <div className="grid grid-cols-2 gap-3">
-        <div className="bg-surface rounded-2xl p-4 shadow-soft flex items-center gap-3">
+        <div className="bg-surface rounded-2xl p-4 shadow-soft border border-ink/5 flex items-center gap-3">
           <ProgressRing percentage={challenge.my_progress_percent} size={44} strokeWidth={5} />
           <div>
             <p className="text-lg font-bold">{challenge.my_progress_percent}%</p>
             <p className="text-[11px] text-ink-soft">Your Progress</p>
           </div>
         </div>
-        <div className="bg-surface rounded-2xl p-4 shadow-soft flex items-center gap-3">
+        <div className="bg-surface rounded-2xl p-4 shadow-soft border border-ink/5 flex items-center gap-3">
           <div className="w-11 h-11 rounded-full bg-gold/10 flex items-center justify-center text-gold shrink-0">
             <Flame size={20} />
           </div>
@@ -127,6 +131,42 @@ export default function ChallengeDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Leaderboard */}
+      {scopes && scopes.length > 0 && (
+        <div className="bg-surface rounded-3xl p-5 shadow-soft border border-ink/5 space-y-3">
+          <div className="flex items-center gap-2">
+            <Trophy size={17} className="text-gold" />
+            <p className="text-sm font-semibold">Leaderboard</p>
+          </div>
+          <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+            {scopes.map((s) => (
+              <button
+                key={s.scope}
+                onClick={() => setActiveScope(s.scope)}
+                className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap ${
+                  scope === s.scope ? 'bg-primary text-white' : 'bg-ink/5 text-ink-soft'
+                }`}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+          {leaderboard && leaderboard.entries.length > 0 ? (
+            <div className="space-y-2">
+              {leaderboard.entries.map((e) => (
+                <div key={e.entry_id} className="flex items-center gap-3">
+                  <div className="w-6 text-sm font-bold text-ink-soft">#{e.rank}</div>
+                  <p className="flex-1 text-sm font-medium truncate">{e.name}</p>
+                  <p className="text-sm text-ink-soft">{e.progress_percent}%</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-ink-soft">No ranked entries yet.</p>
+          )}
+        </div>
+      )}
 
       {/* Family */}
       <GroupCard
@@ -146,7 +186,7 @@ export default function ChallengeDetailPage() {
 
       {/* Daily Quiz */}
       {challenge.quiz_enabled && (
-        <div className="bg-surface rounded-3xl p-5 shadow-soft flex items-center gap-3">
+        <div className="bg-surface rounded-3xl p-5 shadow-soft border border-ink/5 flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-secondary/10 flex items-center justify-center text-secondary shrink-0">
             <HelpCircle size={18} />
           </div>
@@ -159,7 +199,7 @@ export default function ChallengeDetailPage() {
 
       {/* Rewards */}
       {challenge.rewards_enabled && rewards && rewards.length > 0 && (
-        <div className="bg-surface rounded-3xl p-5 shadow-soft space-y-3">
+        <div className="bg-surface rounded-3xl p-5 shadow-soft border border-ink/5 space-y-3">
           <div className="flex items-center gap-2">
             <Award size={17} className="text-gold" />
             <p className="text-sm font-semibold">Rewards</p>
@@ -194,7 +234,7 @@ function GroupCard({
   onOpen,
 }: {
   kind: 'family' | 'buddy'
-  summary: { id: string; name: string; member_count: number; max_members: number; completed_today_count: number } | null | undefined
+  summary: { id: string; name: string; member_count: number; max_members: number | null; completed_today_count: number } | null | undefined
   onCreate: () => void
   onOpen: (id: string) => void
 }) {
@@ -202,7 +242,7 @@ function GroupCard({
 
   if (!summary) {
     return (
-      <button onClick={onCreate} className="w-full flex items-center gap-3 bg-surface rounded-3xl p-5 shadow-soft text-left">
+      <button onClick={onCreate} className="w-full flex items-center gap-3 bg-surface rounded-3xl p-5 shadow-soft border border-ink/5 text-left">
         <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
           <UserPlus size={17} />
         </div>
@@ -216,14 +256,14 @@ function GroupCard({
   }
 
   return (
-    <button onClick={() => onOpen(summary.id)} className="w-full bg-surface rounded-3xl p-5 shadow-soft text-left">
+    <button onClick={() => onOpen(summary.id)} className="w-full bg-surface rounded-3xl p-5 shadow-soft border border-ink/5 text-left">
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
           <Users size={17} />
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold">{label}</p>
-          <p className="text-xs text-ink-soft">{summary.name} · {summary.member_count} / {summary.max_members} members</p>
+          <p className="text-xs text-ink-soft">{summary.name} · {summary.member_count} member{summary.member_count === 1 ? '' : 's'}</p>
         </div>
         <ChevronRight size={16} className="text-ink-soft shrink-0" />
       </div>

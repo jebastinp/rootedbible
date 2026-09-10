@@ -39,6 +39,15 @@ class User(Base):
     auth_provider: Mapped[str | None] = mapped_column(String(20), nullable=True)  # "google" | "email" | "legacy"
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # Address - optional (collected at signup, editable later; not required
+    # for the app to function, so nullable rather than blocking sign-up).
+    house_no: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    street_name: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    city_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    state_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    postcode: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    country: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

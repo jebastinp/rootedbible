@@ -97,24 +97,24 @@ export default function ProfilePage() {
       </motion.div>
 
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="grid grid-cols-3 gap-3">
-        <div className="bg-surface rounded-2xl p-4 shadow-soft text-center">
+        <div className="bg-surface rounded-2xl p-4 shadow-soft border border-ink/5 text-center">
           <Flame size={18} className="mx-auto text-gold mb-1.5" />
           <div className="font-bold text-lg">{stats?.current_streak ?? 0}</div>
           <div className="text-[10px] text-ink-soft mt-0.5 leading-tight">Day Streak</div>
         </div>
-        <div className="bg-surface rounded-2xl p-4 shadow-soft text-center flex flex-col items-center">
+        <div className="bg-surface rounded-2xl p-4 shadow-soft border border-ink/5 text-center flex flex-col items-center">
           <ProgressRing percentage={chaptersPct} size={26} strokeWidth={4} className="mb-1.5" />
           <div className="font-bold text-lg">{chaptersPct}%</div>
           <div className="text-[10px] text-ink-soft mt-0.5 leading-tight">Bible Progress</div>
         </div>
-        <div className="bg-surface rounded-2xl p-4 shadow-soft text-center">
+        <div className="bg-surface rounded-2xl p-4 shadow-soft border border-ink/5 text-center">
           <Award size={18} className="mx-auto text-secondary mb-1.5" />
           <div className="font-bold text-lg">{achievementsEarned}</div>
           <div className="text-[10px] text-ink-soft mt-0.5 leading-tight">Achievements</div>
         </div>
       </motion.div>
 
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-surface rounded-3xl shadow-soft divide-y divide-ink/5 overflow-hidden">
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-surface rounded-3xl shadow-soft border border-ink/5 divide-y divide-ink/5 overflow-hidden">
         {MENU.map((item) => (
           <button
             key={item.label}

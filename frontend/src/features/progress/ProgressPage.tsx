@@ -34,7 +34,7 @@ export default function ProgressPage() {
       </div>
 
       {/* Overall Bible Progress */}
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="bg-surface rounded-3xl p-6 shadow-soft">
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="bg-surface rounded-3xl p-6 shadow-soft border border-ink/5">
         <p className="text-xs font-semibold text-ink-soft uppercase tracking-wide mb-4">Overall Bible Progress</p>
         <div className="flex items-center gap-6">
           <ProgressRing percentage={chaptersPct} size={96} strokeWidth={9}>
@@ -51,17 +51,17 @@ export default function ProgressPage() {
 
       {/* Stat row */}
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="grid grid-cols-3 gap-3">
-        <div className="bg-surface rounded-2xl p-4 shadow-soft text-center">
+        <div className="bg-surface rounded-2xl p-4 shadow-soft border border-ink/5 text-center">
           <Flame size={18} className="mx-auto text-gold mb-1.5" />
           <div className="font-bold text-lg text-ink">{stats?.current_streak ?? 0}</div>
           <div className="text-[10px] text-ink-soft mt-0.5">Day Streak</div>
         </div>
-        <div className="bg-surface rounded-2xl p-4 shadow-soft text-center">
+        <div className="bg-surface rounded-2xl p-4 shadow-soft border border-ink/5 text-center">
           <Trophy size={18} className="mx-auto text-gold mb-1.5" />
           <div className="font-bold text-lg text-ink">{stats?.longest_streak ?? 0}</div>
           <div className="text-[10px] text-ink-soft mt-0.5">Longest Streak</div>
         </div>
-        <div className="bg-surface rounded-2xl p-4 shadow-soft text-center">
+        <div className="bg-surface rounded-2xl p-4 shadow-soft border border-ink/5 text-center">
           <CalendarDays size={18} className="mx-auto text-primary mb-1.5" />
           <div className="font-bold text-lg text-ink">{stats?.days_completed ?? 0}</div>
           <div className="text-[10px] text-ink-soft mt-0.5">Days Read</div>
@@ -69,7 +69,7 @@ export default function ProgressPage() {
       </motion.div>
 
       {/* Testament progress */}
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-surface rounded-3xl p-5 shadow-soft space-y-4">
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-surface rounded-3xl p-5 shadow-soft border border-ink/5 space-y-4">
         <p className="text-xs font-semibold text-ink-soft uppercase tracking-wide">Testament Progress</p>
         <div>
           <div className="flex items-center justify-between mb-1.5">
@@ -94,7 +94,7 @@ export default function ProgressPage() {
       </motion.div>
 
       {/* Reading Activity */}
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="bg-surface rounded-3xl p-5 shadow-soft">
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="bg-surface rounded-3xl p-5 shadow-soft border border-ink/5">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold">Reading Activity</h3>
           <div className="flex bg-background rounded-xl p-0.5">

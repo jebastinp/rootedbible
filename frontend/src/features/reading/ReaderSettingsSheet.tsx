@@ -41,7 +41,7 @@ export default function ReaderSettingsSheet({
         animate={{ y: 0 }}
         exit={{ y: 300 }}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-lg bg-surface text-ink rounded-t-3xl p-5 safe-bottom space-y-5"
+        className="w-full max-w-lg glass text-ink rounded-t-3xl p-5 safe-bottom space-y-5"
       >
         <div className="flex items-center justify-between">
           <p className="font-semibold">Reader Settings</p>

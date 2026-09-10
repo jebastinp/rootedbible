@@ -2,6 +2,7 @@ import logging
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
@@ -27,6 +28,9 @@ from app.api.v1 import (
     admin_plan_generator,
     admin_challenges,
     admin_audit_logs,
+    admin_community,
+    notifications,
+    admin_quiz,
 )
 
 logging.basicConfig(
@@ -56,6 +60,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# Defense-in-depth: nginx already gzips /api/ responses in production, but
+# this keeps responses compressed for any deployment that talks to uvicorn
+# directly (local `uvicorn` runs, tests, a future non-nginx host).
+app.add_middleware(GZipMiddleware, minimum_size=512)
 
 
 # ---------------------------------------------------------------------
@@ -101,6 +109,9 @@ app.include_router(notes.router, prefix=API_PREFIX)
 app.include_router(admin_plan_generator.router, prefix=API_PREFIX)
 app.include_router(admin_challenges.router, prefix=API_PREFIX)
 app.include_router(admin_audit_logs.router, prefix=API_PREFIX)
+app.include_router(admin_community.router, prefix=API_PREFIX)
+app.include_router(notifications.router, prefix=API_PREFIX)
+app.include_router(admin_quiz.router, prefix=API_PREFIX)
 
 
 @app.get("/", tags=["Health"])

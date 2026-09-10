@@ -4,14 +4,20 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_admin
 from app.core.exceptions import ValidationError
 from app.models.user import User
 from app.schemas.challenge import (
     RootedIdLookupOut, ChallengeSummaryOut, ChallengeDetailOut, ChallengeAdminOut,
     GroupCreate, GroupDetailOut, InviteByRootedId, JoinRequestOut, RewardEarnedOut, EncouragementCreate,
+    LeaderboardConfigOut, LeaderboardOut,
+)
+from app.schemas.community import (
+    ChurchCreate, ChurchOut, ChurchDetailOut, FellowshipCreate, FellowshipOut, FellowshipDetailOut,
+    RootedGroupOut, MyGroupMembershipUpdate,
 )
 from app.services.challenge_service import ChallengeService
+from app.services.community_service import CommunityService
 
 router = APIRouter(prefix="/community", tags=["Community"])
 
@@ -47,6 +53,16 @@ def my_rewards(challenge_id: uuid.UUID, current_user: User = Depends(get_current
     return ChallengeService(db).list_my_rewards(current_user.id, challenge_id)
 
 
+@router.get("/challenges/{challenge_id}/leaderboards", response_model=list[LeaderboardConfigOut], summary="Available leaderboard scopes for this challenge")
+def list_leaderboard_scopes(challenge_id: uuid.UUID, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return ChallengeService(db).admin_list_leaderboard_config(challenge_id)
+
+
+@router.get("/challenges/{challenge_id}/leaderboards/{scope}", response_model=LeaderboardOut, summary="Ranked leaderboard for one scope (Family=Top1, others=Top3 by default)")
+def get_leaderboard(challenge_id: uuid.UUID, scope: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return ChallengeService(db).get_leaderboard(challenge_id, scope)
+
+
 @router.get("/requests", summary="My pending incoming and outgoing requests (challenge, family, buddy)")
 def list_requests(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     return ChallengeService(db).list_my_requests(current_user.id)
@@ -59,12 +75,25 @@ def cancel_request(request_id: uuid.UUID, current_user: User = Depends(get_curre
 
 
 # -----------------------------------------------------------------------
-# Family - always scoped to a Church Challenge
+# Family - standalone (no size cap); may optionally also be linked to a
+# single Church Challenge for that challenge's leaderboard.
 # -----------------------------------------------------------------------
-@router.post("/challenges/{challenge_id}/family", response_model=GroupDetailOut, summary="Create a Family inside this Church Challenge")
+@router.get("/family", response_model=list[GroupDetailOut], summary="Families I belong to")
+def list_my_families(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return ChallengeService(db).list_my_groups("family", current_user.id)
+
+
+@router.post("/family", response_model=GroupDetailOut, summary="Create your own Family (no member limit)")
+def create_standalone_family(payload: GroupCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    svc = ChallengeService(db)
+    family = svc.create_group("family", current_user.id, payload)
+    return svc.get_group_detail("family", current_user.id, family.id)
+
+
+@router.post("/challenges/{challenge_id}/family", response_model=GroupDetailOut, summary="Create a Family that also participates in this Church Challenge")
 def create_family(challenge_id: uuid.UUID, payload: GroupCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     svc = ChallengeService(db)
-    family = svc.create_group("family", current_user.id, challenge_id, payload)
+    family = svc.create_group("family", current_user.id, payload, challenge_id=challenge_id)
     return svc.get_group_detail("family", current_user.id, family.id)
 
 
@@ -104,12 +133,25 @@ def encourage_family(family_id: uuid.UUID, payload: EncouragementCreate, current
 
 
 # -----------------------------------------------------------------------
-# Buddy Group - always scoped to a Church Challenge
+# Buddy Group - standalone (no size cap); may optionally also be linked to
+# a single Church Challenge for that challenge's leaderboard.
 # -----------------------------------------------------------------------
-@router.post("/challenges/{challenge_id}/buddy-group", response_model=GroupDetailOut, summary="Create a Buddy Group inside this Church Challenge")
+@router.get("/buddy-group", response_model=list[GroupDetailOut], summary="Buddy Groups I belong to")
+def list_my_buddy_groups(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return ChallengeService(db).list_my_groups("buddy", current_user.id)
+
+
+@router.post("/buddy-group", response_model=GroupDetailOut, summary="Create your own Buddy Group (no member limit)")
+def create_standalone_buddy_group(payload: GroupCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    svc = ChallengeService(db)
+    group = svc.create_group("buddy", current_user.id, payload)
+    return svc.get_group_detail("buddy", current_user.id, group.id)
+
+
+@router.post("/challenges/{challenge_id}/buddy-group", response_model=GroupDetailOut, summary="Create a Buddy Group that also participates in this Church Challenge")
 def create_buddy_group(challenge_id: uuid.UUID, payload: GroupCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     svc = ChallengeService(db)
-    group = svc.create_group("buddy", current_user.id, challenge_id, payload)
+    group = svc.create_group("buddy", current_user.id, payload, challenge_id=challenge_id)
     return svc.get_group_detail("buddy", current_user.id, group.id)
 
 
@@ -170,4 +212,149 @@ def accept_group_request(request_id: uuid.UUID, current_user: User = Depends(get
 @router.post("/requests/{request_id}/decline", summary="Decline a Family or Buddy Group invitation")
 def decline_group_request(request_id: uuid.UUID, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     _respond_to_family_or_buddy_request(db, current_user, request_id, accept=False)
+    return {"success": True}
+
+
+# -----------------------------------------------------------------------
+# Church - standalone, discoverable via church_code
+# -----------------------------------------------------------------------
+@router.get("/church", response_model=list[ChurchOut], summary="Churches I belong to")
+def list_my_churches(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return CommunityService(db).list_my_churches(current_user.id)
+
+
+@router.post("/church", response_model=ChurchOut, summary="Create a Church (admin only)")
+def create_church(payload: ChurchCreate, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    svc = CommunityService(db)
+    church = svc.admin_create_church(current_user.id, payload)
+    return svc._to_church_out(church, current_user.id)
+
+
+@router.get("/church/discover", response_model=list[ChurchOut], summary="Public churches I can request to join")
+def discover_churches(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return CommunityService(db).list_discoverable_churches(current_user.id)
+
+
+@router.get("/church/{church_id}", response_model=ChurchDetailOut, summary="Church detail")
+def get_church(church_id: uuid.UUID, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return CommunityService(db).get_church_detail(current_user.id, church_id)
+
+
+@router.post("/church/{church_id}/join", summary="Request to join a Church")
+def join_church(church_id: uuid.UUID, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    request = CommunityService(db).request_join_church(current_user.id, church_id=church_id)
+    return {"request_id": request.id, "status": request.status}
+
+
+@router.post("/church/join-by-code/{church_code}", summary="Request to join a Church by its code")
+def join_church_by_code(church_code: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    request = CommunityService(db).request_join_church(current_user.id, church_code=church_code)
+    return {"request_id": request.id, "status": request.status}
+
+
+@router.get("/church/{church_id}/requests", summary="Pending join requests for this church (admin only)")
+def list_church_requests(church_id: uuid.UUID, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return CommunityService(db).list_pending_church_requests(current_user.id, church_id)
+
+
+@router.post("/church/requests/{request_id}/approve", summary="Approve a church join request (admin only)")
+def approve_church_request(request_id: uuid.UUID, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    CommunityService(db).respond_to_church_request(current_user.id, request_id, approve=True)
+    return {"success": True}
+
+
+@router.post("/church/requests/{request_id}/decline", summary="Decline a church join request (admin only)")
+def decline_church_request(request_id: uuid.UUID, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    CommunityService(db).respond_to_church_request(current_user.id, request_id, approve=False)
+    return {"success": True}
+
+
+@router.post("/church/{church_id}/leave", summary="Leave this Church")
+def leave_church(church_id: uuid.UUID, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    CommunityService(db).leave_church(current_user.id, church_id)
+    return {"success": True}
+
+
+@router.delete("/church/{church_id}/members/{rooted_id}", summary="Remove a member (admin only)")
+def remove_church_member(church_id: uuid.UUID, rooted_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    CommunityService(db).remove_church_member(current_user.id, church_id, rooted_id)
+    return {"success": True}
+
+
+# -----------------------------------------------------------------------
+# Fellowship - standalone, optionally scoped to a Church
+# -----------------------------------------------------------------------
+@router.get("/fellowship", response_model=list[FellowshipOut], summary="Fellowships I belong to")
+def list_my_fellowships(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return CommunityService(db).list_my_fellowships(current_user.id)
+
+
+@router.post("/fellowship", response_model=FellowshipOut, summary="Create a Fellowship (admin only)")
+def create_fellowship(payload: FellowshipCreate, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    svc = CommunityService(db)
+    fellowship = svc.admin_create_fellowship(current_user.id, payload)
+    return svc._to_fellowship_out(fellowship, current_user.id)
+
+
+@router.get("/fellowship/discover", response_model=list[FellowshipOut], summary="Public fellowships I can request to join")
+def discover_fellowships(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return CommunityService(db).list_discoverable_fellowships(current_user.id)
+
+
+@router.get("/fellowship/{fellowship_id}", response_model=FellowshipDetailOut, summary="Fellowship detail")
+def get_fellowship(fellowship_id: uuid.UUID, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return CommunityService(db).get_fellowship_detail(current_user.id, fellowship_id)
+
+
+@router.post("/fellowship/{fellowship_id}/join", summary="Request to join a Fellowship")
+def join_fellowship(fellowship_id: uuid.UUID, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    request = CommunityService(db).request_join_fellowship(current_user.id, fellowship_id)
+    return {"request_id": request.id, "status": request.status}
+
+
+@router.get("/fellowship/{fellowship_id}/requests", summary="Pending join requests for this fellowship (admin only)")
+def list_fellowship_requests(fellowship_id: uuid.UUID, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return CommunityService(db).list_pending_fellowship_requests(current_user.id, fellowship_id)
+
+
+@router.post("/fellowship/requests/{request_id}/approve", summary="Approve a fellowship join request (admin only)")
+def approve_fellowship_request(request_id: uuid.UUID, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    CommunityService(db).respond_to_fellowship_request(current_user.id, request_id, approve=True)
+    return {"success": True}
+
+
+@router.post("/fellowship/requests/{request_id}/decline", summary="Decline a fellowship join request (admin only)")
+def decline_fellowship_request(request_id: uuid.UUID, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    CommunityService(db).respond_to_fellowship_request(current_user.id, request_id, approve=False)
+    return {"success": True}
+
+
+@router.post("/fellowship/{fellowship_id}/leave", summary="Leave this Fellowship")
+def leave_fellowship(fellowship_id: uuid.UUID, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    CommunityService(db).leave_fellowship(current_user.id, fellowship_id)
+    return {"success": True}
+
+
+@router.delete("/fellowship/{fellowship_id}/members/{rooted_id}", summary="Remove a member (admin only)")
+def remove_fellowship_member(fellowship_id: uuid.UUID, rooted_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    CommunityService(db).remove_fellowship_member(current_user.id, fellowship_id, rooted_id)
+    return {"success": True}
+
+
+# -----------------------------------------------------------------------
+# Rooted Group (Sunday / Blazer / Youth / Men / Women)
+# -----------------------------------------------------------------------
+@router.get("/groups", response_model=list[RootedGroupOut], summary="All active Rooted groups")
+def list_groups(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return CommunityService(db).list_groups()
+
+
+@router.get("/groups/mine", response_model=list[str], summary="Group IDs I belong to")
+def my_groups(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return [str(g) for g in CommunityService(db).get_my_group_ids(current_user.id)]
+
+
+@router.put("/groups/mine", summary="Set my group memberships (replaces the full set)")
+def set_my_groups(payload: MyGroupMembershipUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    CommunityService(db).set_my_groups(current_user.id, payload.group_ids)
     return {"success": True}

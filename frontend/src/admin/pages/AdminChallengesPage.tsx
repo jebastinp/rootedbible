@@ -43,7 +43,8 @@ export default function AdminChallengesPage() {
         ) : !challenges?.length ? (
           <div className="text-center py-16 text-sm text-ink-soft">No Church Challenges yet. Create the first one to get started.</div>
         ) : (
-          <div className="bg-surface rounded-2xl shadow-soft overflow-hidden">
+          <div className="bg-surface rounded-2xl shadow-soft border border-ink/5 overflow-hidden">
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-ink/5 text-left text-xs font-semibold text-ink-soft uppercase tracking-wide">
@@ -60,7 +61,7 @@ export default function AdminChallengesPage() {
                   <tr key={c.id} onClick={() => navigate(`/admin/challenges/${c.id}`)} className="border-b border-ink/5 last:border-0 hover:bg-background cursor-pointer">
                     <td className="px-5 py-3.5 font-medium">{c.name}</td>
                     <td className="px-5 py-3.5 text-ink-soft">{c.church_name}</td>
-                    <td className="px-5 py-3.5 text-ink-soft">{c.participant_count} / {c.participant_limit}</td>
+                    <td className="px-5 py-3.5 text-ink-soft">{c.participant_count}{c.participant_limit ? ` / ${c.participant_limit}` : ''}</td>
                     <td className="px-5 py-3.5 text-ink-soft">{c.start_date ?? '—'}</td>
                     <td className="px-5 py-3.5 text-ink-soft">{c.end_date ?? '—'}</td>
                     <td className="px-5 py-3.5">
@@ -70,6 +71,7 @@ export default function AdminChallengesPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         )}
       </div>
@@ -87,11 +89,10 @@ function CreateChallengeModal({ onClose }: { onClose: () => void }) {
   const [description, setDescription] = useState('')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+  const [hasParticipantLimit, setHasParticipantLimit] = useState(false)
   const [participantLimit, setParticipantLimit] = useState(100)
   const [allowFamilies, setAllowFamilies] = useState(true)
-  const [familyLimit, setFamilyLimit] = useState(4)
   const [allowBuddies, setAllowBuddies] = useState(true)
-  const [buddyLimit, setBuddyLimit] = useState(5)
   const [quizEnabled, setQuizEnabled] = useState(true)
   const [rewardsEnabled, setRewardsEnabled] = useState(true)
   const [status, setStatus] = useState<ChallengeStatus>('draft')
@@ -105,11 +106,9 @@ function CreateChallengeModal({ onClose }: { onClose: () => void }) {
           description: description || undefined,
           start_date: startDate || undefined,
           end_date: endDate || undefined,
-          participant_limit: participantLimit,
+          participant_limit: hasParticipantLimit ? participantLimit : undefined,
           allow_families: allowFamilies,
-          family_limit: familyLimit,
           allow_buddies: allowBuddies,
-          buddy_limit: buddyLimit,
           quiz_enabled: quizEnabled,
           rewards_enabled: rewardsEnabled,
           status,
@@ -134,7 +133,7 @@ function CreateChallengeModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-lg bg-surface rounded-2xl shadow-card p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-lg glass rounded-2xl shadow-card border border-ink/5 p-6 space-y-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between">
           <p className="text-lg font-semibold">Create Church Challenge</p>
           <button onClick={onClose} aria-label="Close"><X size={18} /></button>
@@ -152,7 +151,12 @@ function CreateChallengeModal({ onClose }: { onClose: () => void }) {
           </Field>
           <Field label="Start Date"><input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="admin-input" /></Field>
           <Field label="End Date"><input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="admin-input" /></Field>
-          <Field label="Participant Limit"><input type="number" min={2} value={participantLimit} onChange={(e) => setParticipantLimit(Number(e.target.value))} className="admin-input" /></Field>
+          <Field label="Participant Limit">
+            <div className="flex items-center gap-2">
+              <input type="checkbox" checked={hasParticipantLimit} onChange={(e) => setHasParticipantLimit(e.target.checked)} />
+              <input type="number" min={2} value={participantLimit} onChange={(e) => setParticipantLimit(Number(e.target.value))} disabled={!hasParticipantLimit} placeholder="No limit" className="admin-input flex-1 disabled:opacity-50" />
+            </div>
+          </Field>
           <Field label="Status">
             <select value={status} onChange={(e) => setStatus(e.target.value as ChallengeStatus)} className="admin-input">
               <option value="draft">Draft</option>
@@ -161,16 +165,10 @@ function CreateChallengeModal({ onClose }: { onClose: () => void }) {
           </Field>
 
           <Field label="Allow Families">
-            <div className="flex items-center gap-2">
-              <input type="checkbox" checked={allowFamilies} onChange={(e) => setAllowFamilies(e.target.checked)} />
-              <input type="number" min={2} value={familyLimit} onChange={(e) => setFamilyLimit(Number(e.target.value))} disabled={!allowFamilies} className="admin-input flex-1 disabled:opacity-50" />
-            </div>
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={allowFamilies} onChange={(e) => setAllowFamilies(e.target.checked)} /> Enabled - no member limit</label>
           </Field>
           <Field label="Allow Buddy Groups">
-            <div className="flex items-center gap-2">
-              <input type="checkbox" checked={allowBuddies} onChange={(e) => setAllowBuddies(e.target.checked)} />
-              <input type="number" min={2} value={buddyLimit} onChange={(e) => setBuddyLimit(Number(e.target.value))} disabled={!allowBuddies} className="admin-input flex-1 disabled:opacity-50" />
-            </div>
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={allowBuddies} onChange={(e) => setAllowBuddies(e.target.checked)} /> Enabled - no member limit</label>
           </Field>
 
           <Field label="Daily Quiz">

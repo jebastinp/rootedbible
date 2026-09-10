@@ -27,7 +27,7 @@ export default function GoogleButton({
       type="button"
       onClick={onClick}
       disabled={loading}
-      className="w-full flex items-center justify-center gap-3 border border-ink/10 bg-white text-ink font-medium py-3.5 rounded-full shadow-soft hover:bg-black/[0.02] active:scale-[0.98] transition-all disabled:opacity-60"
+      className="w-full flex items-center justify-center gap-3 border border-ink/10 bg-surface text-ink font-medium py-3.5 rounded-full shadow-soft hover:bg-black/[0.02] active:scale-[0.98] transition-all disabled:opacity-60"
     >
       {loading ? <Loader2 size={18} className="animate-spin" /> : <><GoogleIcon /> {label}</>}
     </button>

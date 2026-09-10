@@ -86,7 +86,7 @@ export default function GroupDetailPage({ kind }: { kind: 'family' | 'buddy' }) 
             <MoreVertical size={17} />
           </button>
           {menuOpen && (
-            <div className="absolute right-0 top-12 z-10 bg-surface rounded-2xl shadow-card py-1.5 w-44">
+            <div className="absolute right-0 top-12 z-10 glass rounded-2xl shadow-card border border-ink/5 py-1.5 w-44">
               {isOwner ? (
                 <button onClick={() => { setMenuOpen(false); handleDelete() }} className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-500">
                   <Trash2 size={14} /> Delete {label}
@@ -103,13 +103,13 @@ export default function GroupDetailPage({ kind }: { kind: 'family' | 'buddy' }) 
 
       {group.description && <p className="text-sm text-ink-soft">{group.description}</p>}
 
-      <div className="bg-surface rounded-3xl p-5 shadow-soft flex items-center gap-3">
+      <div className="bg-surface rounded-3xl p-5 shadow-soft border border-ink/5 flex items-center gap-3">
         <div className="w-10 h-10 rounded-full bg-gold/10 flex items-center justify-center text-gold shrink-0">
           <Flame size={18} />
         </div>
         <div>
           <p className="text-sm font-semibold">{completedToday} of {group.members.length} read today</p>
-          <p className="text-xs text-ink-soft">{group.members.length} / {group.max_members} members</p>
+          <p className="text-xs text-ink-soft">{group.members.length} member{group.members.length === 1 ? '' : 's'}</p>
         </div>
       </div>
 
@@ -119,7 +119,7 @@ export default function GroupDetailPage({ kind }: { kind: 'family' | 'buddy' }) 
 
       <div className="space-y-2">
         <p className="text-xs font-semibold text-ink-soft uppercase tracking-wide">Members</p>
-        <div className="bg-surface rounded-3xl shadow-soft divide-y divide-ink/5 overflow-hidden">
+        <div className="bg-surface rounded-3xl shadow-soft border border-ink/5 divide-y divide-ink/5 overflow-hidden">
           {group.members.map((m) => (
             <motion.div key={m.user_id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-3 px-4 py-3.5">
               <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary shrink-0">
@@ -155,7 +155,7 @@ export default function GroupDetailPage({ kind }: { kind: 'family' | 'buddy' }) 
 
       {encourageTarget !== null && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={() => setEncourageTarget(null)}>
-          <motion.div initial={{ y: 300 }} animate={{ y: 0 }} onClick={(e) => e.stopPropagation()} className="w-full max-w-lg bg-surface text-ink rounded-t-3xl p-5 safe-bottom space-y-3">
+          <motion.div initial={{ y: 300 }} animate={{ y: 0 }} onClick={(e) => e.stopPropagation()} className="w-full max-w-lg glass text-ink rounded-t-3xl p-5 safe-bottom space-y-3">
             <p className="font-semibold">Send Encouragement</p>
             <div className="space-y-2">
               {ENCOURAGEMENT_MESSAGES.map((msg) => (

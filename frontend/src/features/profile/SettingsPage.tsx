@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { LogOut, Sun, Moon, BookOpen, ChevronRight } from 'lucide-react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { LogOut, Sun, Moon, BookOpen, ChevronRight, Save, Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
 import { useAuthStore } from '@/store/authStore'
 import { useTheme } from '@/lib/theme'
 import { useBibleVersions } from '@/lib/bible'
@@ -8,6 +10,9 @@ import { getPreferredVersion, setPreferredVersion } from '@/lib/preferredVersion
 import TranslationPicker from '@/features/bible/TranslationPicker'
 import SubPageHeader from '@/components/shared/SubPageHeader'
 import { cn } from '@/lib/utils'
+import { api, getApiErrorMessage } from '@/lib/api'
+import { useRootedGroups, useMyGroupIds, useSetMyGroups } from '@/features/community/useChurch'
+import type { UserWithStats } from '@/types'
 
 export default function SettingsPage() {
   const { user, logout } = useAuthStore()
@@ -17,6 +22,45 @@ export default function SettingsPage() {
   const [translationPickerOpen, setTranslationPickerOpen] = useState(false)
   const [preferredCode, setPreferredCode] = useState(getPreferredVersion())
   const preferredVersion = versions.data?.find((v) => v.code === preferredCode)
+  const queryClient = useQueryClient()
+
+  const { data: profile } = useQuery({
+    queryKey: ['my-profile'],
+    queryFn: async () => (await api.get<UserWithStats>('/profile/me')).data,
+  })
+
+  const [address, setAddress] = useState({ house_no: '', street_name: '', city_name: '', state_name: '', postcode: '', country: '' })
+  useEffect(() => {
+    if (profile) {
+      setAddress({
+        house_no: profile.house_no ?? '', street_name: profile.street_name ?? '', city_name: profile.city_name ?? '',
+        state_name: profile.state_name ?? '', postcode: profile.postcode ?? '', country: profile.country ?? '',
+      })
+    }
+  }, [profile])
+
+  const saveAddress = useMutation({
+    mutationFn: async () => (await api.patch('/profile/me', address)).data,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['my-profile'] })
+      toast.success('Address saved')
+    },
+    onError: (err) => toast.error(getApiErrorMessage(err)),
+  })
+
+  const { data: groups } = useRootedGroups()
+  const { data: myGroupIds } = useMyGroupIds()
+  const setGroups = useSetMyGroups()
+  const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([])
+  useEffect(() => {
+    if (myGroupIds) setSelectedGroupIds(myGroupIds)
+  }, [myGroupIds])
+
+  function toggleGroup(id: string) {
+    const next = selectedGroupIds.includes(id) ? selectedGroupIds.filter((g) => g !== id) : [...selectedGroupIds, id]
+    setSelectedGroupIds(next)
+    setGroups.mutate(next, { onError: () => toast.error('Could not update your groups.') })
+  }
 
   return (
     <div className="px-5 pt-8 space-y-5 pb-4">
@@ -24,7 +68,7 @@ export default function SettingsPage() {
 
       <div>
         <p className="text-xs font-semibold text-ink-soft uppercase tracking-wide mb-2 px-1">Account</p>
-        <div className="bg-surface rounded-3xl shadow-soft divide-y divide-ink/5 overflow-hidden">
+        <div className="bg-surface rounded-3xl shadow-soft border border-ink/5 divide-y divide-ink/5 overflow-hidden">
           <div className="px-5 py-4">
             <p className="text-xs text-ink-soft">Name</p>
             <p className="text-sm font-medium text-ink mt-0.5">{user?.name}</p>
@@ -39,6 +83,51 @@ export default function SettingsPage() {
             <p className="text-xs text-ink-soft">Rooted ID</p>
             <p className="text-sm font-medium text-ink mt-0.5">{user?.user_id}</p>
           </div>
+        </div>
+      </div>
+
+      <div>
+        <p className="text-xs font-semibold text-ink-soft uppercase tracking-wide mb-2 px-1">Groups</p>
+        <div className="bg-surface rounded-3xl shadow-soft p-4">
+          <p className="text-xs text-ink-soft mb-3">Select any ministry groups you're part of.</p>
+          <div className="flex flex-wrap gap-2">
+            {groups?.map((g) => (
+              <button
+                key={g.id}
+                onClick={() => toggleGroup(g.id)}
+                className={cn(
+                  'px-3.5 py-2 rounded-full text-sm font-semibold transition-colors',
+                  selectedGroupIds.includes(g.id) ? 'bg-primary text-white' : 'bg-background text-ink-soft'
+                )}
+              >
+                {g.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <p className="text-xs font-semibold text-ink-soft uppercase tracking-wide mb-2 px-1">Address</p>
+        <div className="bg-surface rounded-3xl shadow-soft p-4 space-y-2.5">
+          <div className="grid grid-cols-2 gap-2.5">
+            <input value={address.house_no} onChange={(e) => setAddress({ ...address, house_no: e.target.value })} placeholder="House No" className="px-3.5 py-2.5 rounded-xl border border-ink/10 bg-background text-sm focus:outline-none focus:ring-2 focus:ring-secondary/40" />
+            <input value={address.postcode} onChange={(e) => setAddress({ ...address, postcode: e.target.value })} placeholder="Postcode" className="px-3.5 py-2.5 rounded-xl border border-ink/10 bg-background text-sm focus:outline-none focus:ring-2 focus:ring-secondary/40" />
+          </div>
+          <input value={address.street_name} onChange={(e) => setAddress({ ...address, street_name: e.target.value })} placeholder="Street Name" className="w-full px-3.5 py-2.5 rounded-xl border border-ink/10 bg-background text-sm focus:outline-none focus:ring-2 focus:ring-secondary/40" />
+          <div className="grid grid-cols-2 gap-2.5">
+            <input value={address.city_name} onChange={(e) => setAddress({ ...address, city_name: e.target.value })} placeholder="City" className="px-3.5 py-2.5 rounded-xl border border-ink/10 bg-background text-sm focus:outline-none focus:ring-2 focus:ring-secondary/40" />
+            <input value={address.state_name} onChange={(e) => setAddress({ ...address, state_name: e.target.value })} placeholder="State" className="px-3.5 py-2.5 rounded-xl border border-ink/10 bg-background text-sm focus:outline-none focus:ring-2 focus:ring-secondary/40" />
+          </div>
+          <input value={address.country} onChange={(e) => setAddress({ ...address, country: e.target.value })} placeholder="Country" className="w-full px-3.5 py-2.5 rounded-xl border border-ink/10 bg-background text-sm focus:outline-none focus:ring-2 focus:ring-secondary/40" />
+          <button
+            onClick={() => saveAddress.mutate()}
+            disabled={saveAddress.isPending}
+            className="w-full flex items-center justify-center gap-2 bg-primary text-white text-sm font-semibold py-2.5 rounded-xl disabled:opacity-60"
+          >
+            {saveAddress.isPending ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+            Save Address
+          </button>
         </div>
       </div>
 
@@ -87,8 +176,7 @@ export default function SettingsPage() {
       </div>
 
       <p className="text-xs text-ink-soft px-1">
-        Reading font size and line spacing can be adjusted from within the Bible reader. Notifications and privacy
-        controls are coming soon.
+        Reading font size and line spacing can be adjusted from within the Bible reader.
       </p>
 
       <button

@@ -28,7 +28,7 @@ export default function HighlightsPage() {
           <p className="text-sm text-ink-soft">No highlights yet. Tap a verse while reading to highlight it.</p>
         </div>
       ) : (
-        <div className="bg-surface rounded-3xl shadow-soft divide-y divide-ink/5 overflow-hidden">
+        <div className="bg-surface rounded-3xl shadow-soft border border-ink/5 divide-y divide-ink/5 overflow-hidden">
           {highlights.map((h) => (
             <motion.div
               key={h.id}

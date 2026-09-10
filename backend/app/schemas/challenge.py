@@ -22,11 +22,10 @@ class ChallengeCreate(BaseModel):
     reading_plan_id: Optional[uuid.UUID] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
-    participant_limit: int = Field(default=100, ge=2, le=100000)
+    # None = unlimited, no default cap. If set, must be at least 2.
+    participant_limit: Optional[int] = Field(default=None, ge=2, le=1000000)
     allow_families: bool = True
-    family_limit: int = Field(default=4, ge=2, le=50)
     allow_buddies: bool = True
-    buddy_limit: int = Field(default=5, ge=2, le=50)
     quiz_enabled: bool = True
     rewards_enabled: bool = True
     status: str = Field(default="draft", pattern="^(draft|active|completed|archived)$")
@@ -39,11 +38,9 @@ class ChallengeUpdate(BaseModel):
     reading_plan_id: Optional[uuid.UUID] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
-    participant_limit: Optional[int] = Field(default=None, ge=2, le=100000)
+    participant_limit: Optional[int] = Field(default=None, ge=2, le=1000000)
     allow_families: Optional[bool] = None
-    family_limit: Optional[int] = Field(default=None, ge=2, le=50)
     allow_buddies: Optional[bool] = None
-    buddy_limit: Optional[int] = Field(default=None, ge=2, le=50)
     quiz_enabled: Optional[bool] = None
     rewards_enabled: Optional[bool] = None
     status: Optional[str] = Field(default=None, pattern="^(draft|active|completed|archived)$")
@@ -57,13 +54,11 @@ class ChallengeAdminOut(BaseModel):
     reading_plan_id: Optional[uuid.UUID] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
-    participant_limit: int
+    participant_limit: Optional[int] = None
     participant_count: int
     status: str
     allow_families: bool
-    family_limit: int
     allow_buddies: bool
-    buddy_limit: int
     quiz_enabled: bool
     rewards_enabled: bool
     created_at: datetime
@@ -96,7 +91,7 @@ class ChallengeGroupSummary(BaseModel):
     id: uuid.UUID
     name: str
     member_count: int
-    max_members: int
+    max_members: Optional[int] = None  # None = no cap
     completed_today_count: int
 
 
@@ -117,7 +112,7 @@ class ChallengeDetailOut(BaseModel):
     quiz_enabled: bool
     rewards_enabled: bool
     participant_count: int
-    participant_limit: int
+    participant_limit: Optional[int] = None
 
 
 # ---------------------------------------------------------------------
@@ -139,16 +134,31 @@ class GroupMemberOut(BaseModel):
 
 class GroupDetailOut(BaseModel):
     id: uuid.UUID
-    challenge_id: uuid.UUID
+    challenge_id: Optional[uuid.UUID] = None
     name: str
     description: Optional[str] = None
     my_role: str
-    max_members: int
+    max_members: Optional[int] = None  # None = no cap
     members: list[GroupMemberOut]
 
 
 class InviteByRootedId(BaseModel):
     rooted_id: str = Field(min_length=1, max_length=20)
+
+
+class GroupAdminSummaryOut(BaseModel):
+    """Super Admin's platform-wide view of every Family/Buddy Group -
+    private groups are never visible to other normal users, but are always
+    visible here for moderation/support."""
+    id: uuid.UUID
+    name: str
+    owner_user_id: str
+    owner_name: str
+    member_count: int
+    challenge_id: Optional[uuid.UUID] = None
+    challenge_name: Optional[str] = None
+    privacy: str
+    created_at: datetime
 
 
 # ---------------------------------------------------------------------
@@ -220,3 +230,30 @@ class RewardEarnedOut(RewardOut):
 class EncouragementCreate(BaseModel):
     message: str = Field(min_length=1, max_length=120)
     to_user_id: Optional[str] = None  # Rooted ID, buddy-only "encourage this person"
+
+
+# ---------------------------------------------------------------------
+# Leaderboard
+# ---------------------------------------------------------------------
+class LeaderboardConfigOut(BaseModel):
+    scope: str  # individual | family | buddy | <RootedGroup name>
+    label: str
+    ranking_limit: int
+
+
+class LeaderboardConfigUpdate(BaseModel):
+    ranking_limit: int = Field(ge=1, le=100)
+
+
+class LeaderboardEntryOut(BaseModel):
+    rank: int
+    entry_id: str  # rooted_id for individual, group/entity uuid otherwise
+    name: str
+    progress_percent: int
+
+
+class LeaderboardOut(BaseModel):
+    scope: str
+    label: str
+    ranking_limit: int
+    entries: list[LeaderboardEntryOut]

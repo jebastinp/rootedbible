@@ -36,7 +36,7 @@ export default function ReadingHistoryPage() {
           <p className="text-sm text-ink-soft">No completed readings yet. Once you finish a day's reading, it'll show up here.</p>
         </div>
       ) : (
-        <div className="bg-surface rounded-3xl shadow-soft divide-y divide-ink/5 overflow-hidden">
+        <div className="bg-surface rounded-3xl shadow-soft border border-ink/5 divide-y divide-ink/5 overflow-hidden">
           {completedDays.map((day) => (
             <div key={day.id} className="flex items-center gap-3 px-5 py-4">
               <CheckCircle2 size={18} className="text-primary shrink-0" />

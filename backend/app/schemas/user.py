@@ -27,6 +27,12 @@ class UserUpdate(BaseModel):
     status: Optional[UserStatus] = None
     date_of_birth: Optional[date] = None
     photo_url: Optional[str] = None
+    house_no: Optional[str] = Field(default=None, max_length=50)
+    street_name: Optional[str] = Field(default=None, max_length=150)
+    city_name: Optional[str] = Field(default=None, max_length=100)
+    state_name: Optional[str] = Field(default=None, max_length=100)
+    postcode: Optional[str] = Field(default=None, max_length=20)
+    country: Optional[str] = Field(default=None, max_length=100)
 
 
 class AdminAccountEmailUpdate(BaseModel):
@@ -46,6 +52,12 @@ class UserOut(UserBase):
     photo_url: Optional[str] = None
     joined_date: date
     created_at: datetime
+    house_no: Optional[str] = None
+    street_name: Optional[str] = None
+    city_name: Optional[str] = None
+    state_name: Optional[str] = None
+    postcode: Optional[str] = None
+    country: Optional[str] = None
 
 
 class UserWithStats(UserOut):

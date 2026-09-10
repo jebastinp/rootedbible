@@ -36,7 +36,7 @@ export default function BibleBookPage() {
           <p className="text-sm text-ink-soft">This book couldn't be found. Please go back and choose a book from the list.</p>
         </div>
       ) : (
-        <div className="bg-surface rounded-3xl shadow-soft p-5">
+        <div className="bg-surface rounded-3xl shadow-soft border border-ink/5 p-5">
           <p className="text-xs font-semibold text-ink-soft uppercase tracking-wide mb-4">
             {bookMeta.chapter_count} chapter{bookMeta.chapter_count === 1 ? '' : 's'}
           </p>

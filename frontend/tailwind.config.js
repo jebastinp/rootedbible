@@ -17,7 +17,11 @@ export default {
           DEFAULT: 'rgb(var(--color-accent) / <alpha-value>)',
         },
         background: 'rgb(var(--color-background) / <alpha-value>)',
-        surface: 'rgb(var(--color-surface) / <alpha-value>)',
+        surface: {
+          DEFAULT: 'rgb(var(--color-surface) / <alpha-value>)',
+          elevated: 'rgb(var(--color-surface-elevated) / <alpha-value>)',
+          float: 'rgb(var(--color-surface-float) / <alpha-value>)',
+        },
         ink: {
           DEFAULT: 'rgb(var(--color-ink) / <alpha-value>)',
           soft: 'rgb(var(--color-ink-soft) / <alpha-value>)',
@@ -36,14 +40,23 @@ export default {
         // Optional reader-only serif for Scripture reading preference (not used app-wide).
         display: ['"Fraunces"', 'ui-serif', 'Georgia', 'serif'],
       },
+      // Centralized Rooted radius scale - every rounded-* class in the app
+      // resolves through here, so changing a value here changes it
+      // everywhere at once instead of touching individual components.
+      //   sm/DEFAULT  10px  small controls (chips, tags, pagination)
+      //   md          14px  inputs
+      //   lg          18px  buttons
+      //   xl          24px  standard cards
+      //   2xl         28px  larger cards / modals
+      //   3xl         32px  hero sections, bottom nav, big showcase cards
       borderRadius: {
-        sm: '0.625rem',   // 10px
+        sm: '0.625rem',    // 10px
         DEFAULT: '0.625rem',
-        md: '0.875rem',   // 14px
-        lg: '1.125rem',   // 18px
-        xl: '1.5rem',     // 24px
-        '2xl': '1.5rem',  // 24px (kept for existing usage)
-        '3xl': '1.875rem', // 30px
+        md: '0.875rem',    // 14px
+        lg: '1.125rem',    // 18px
+        xl: '1.5rem',      // 24px
+        '2xl': '1.75rem',  // 28px
+        '3xl': '2rem',     // 32px
       },
       boxShadow: {
         soft: '0 2px 8px rgba(11, 93, 59, 0.06), 0 8px 24px rgba(11, 93, 59, 0.06)',

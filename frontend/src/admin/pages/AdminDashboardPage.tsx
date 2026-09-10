@@ -33,7 +33,7 @@ export default function AdminDashboardPage() {
       <div className="p-8 space-y-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
           {cards.map((c) => (
-            <div key={c.label} className="bg-surface rounded-3xl p-5 shadow-soft">
+            <div key={c.label} className="bg-surface rounded-3xl p-5 shadow-soft border border-ink/5">
               <div className={`w-10 h-10 rounded-xl ${c.color} flex items-center justify-center mb-3`}>
                 <c.icon size={19} className="text-white" />
               </div>
@@ -44,7 +44,7 @@ export default function AdminDashboardPage() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-          <div className="lg:col-span-2 bg-surface rounded-3xl p-6 shadow-soft">
+          <div className="lg:col-span-2 bg-surface rounded-3xl p-6 shadow-soft border border-ink/5">
             <h3 className="font-semibold mb-4">Top Readers</h3>
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%">
@@ -57,7 +57,7 @@ export default function AdminDashboardPage() {
             </div>
           </div>
 
-          <div className="bg-surface rounded-3xl p-6 shadow-soft">
+          <div className="bg-surface rounded-3xl p-6 shadow-soft border border-ink/5">
             <div className="flex items-center gap-2 mb-4">
               <Flame size={18} className="text-gold" />
               <h3 className="font-semibold">Avg. Streak</h3>
@@ -67,7 +67,7 @@ export default function AdminDashboardPage() {
           </div>
         </div>
 
-        <div className="bg-surface rounded-3xl p-6 shadow-soft">
+        <div className="bg-surface rounded-3xl p-6 shadow-soft border border-ink/5">
           <h3 className="font-semibold mb-4">Recent Activity</h3>
           <div className="space-y-2">
             {data?.recent_activities.map((a, i) => (

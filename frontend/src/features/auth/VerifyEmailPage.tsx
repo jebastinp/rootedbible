@@ -64,7 +64,7 @@ export default function VerifyEmailPage() {
 
   return (
     <AuthShell showTagline={false}>
-      <div className="bg-surface rounded-3xl shadow-card p-7 text-center space-y-4">
+      <div className="bg-surface rounded-3xl shadow-card border border-ink/5 text-center p-7 space-y-4">
         <div className="w-14 h-14 rounded-full bg-secondary/10 flex items-center justify-center mx-auto">
           <Mail size={24} className="text-primary" />
         </div>

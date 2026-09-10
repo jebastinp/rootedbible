@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { X } from 'lucide-react'
 import { toast } from 'sonner'
-import { useCreateGroup } from './useCommunity'
+import { useCreateGroup, useCreateStandaloneGroup } from './useCommunity'
 
 export default function CreateGroupSheet({
   kind,
@@ -11,13 +11,16 @@ export default function CreateGroupSheet({
   onClose,
 }: {
   kind: 'family' | 'buddy'
-  challengeId: string
+  challengeId?: string
   onClose: () => void
 }) {
   const navigate = useNavigate()
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
-  const create = useCreateGroup(kind, challengeId)
+  // Both hooks are always called (rules of hooks) - only one is actually used at submit time.
+  const createInChallenge = useCreateGroup(kind, challengeId ?? '')
+  const createStandalone = useCreateStandaloneGroup(kind)
+  const create = challengeId ? createInChallenge : createStandalone
   const label = kind === 'family' ? 'Family' : 'Buddy Group'
 
   function submit() {
@@ -26,7 +29,7 @@ export default function CreateGroupSheet({
       return
     }
     create.mutate(
-      { name: name.trim(), description: kind === 'family' ? description.trim() || undefined : undefined },
+      { name: name.trim(), description: description.trim() || undefined },
       {
         onSuccess: (group) => {
           toast.success(`${group.name} created`)
@@ -45,7 +48,7 @@ export default function CreateGroupSheet({
         animate={{ y: 0 }}
         exit={{ y: 300 }}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-lg bg-surface text-ink rounded-t-3xl p-5 safe-bottom space-y-5"
+        className="w-full max-w-lg glass text-ink rounded-t-3xl p-5 safe-bottom space-y-5"
       >
         <div className="flex items-center justify-between">
           <p className="font-semibold">Create a {label}</p>
@@ -64,8 +67,7 @@ export default function CreateGroupSheet({
               maxLength={120}
             />
           </div>
-          {kind === 'family' && (
-            <div>
+          <div>
               <label className="text-xs font-semibold text-ink-soft uppercase tracking-wide mb-1.5 block">Description (optional)</label>
               <textarea
                 value={description}
@@ -74,8 +76,7 @@ export default function CreateGroupSheet({
                 maxLength={500}
                 className="w-full px-4 py-3 rounded-2xl border border-ink/10 bg-background text-sm focus:outline-none focus:ring-2 focus:ring-secondary/40 resize-none"
               />
-            </div>
-          )}
+          </div>
         </div>
 
         <button

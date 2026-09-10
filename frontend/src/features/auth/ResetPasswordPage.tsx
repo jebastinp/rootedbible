@@ -54,7 +54,7 @@ export default function ResetPasswordPage() {
 
   return (
     <AuthShell showTagline={false}>
-      <div className="bg-surface rounded-3xl shadow-card p-7">
+      <div className="bg-surface rounded-3xl shadow-card border border-ink/5 p-7">
         {status === 'checking' && (
           <div className="flex justify-center py-6"><Loader2 className="animate-spin text-primary" size={24} /></div>
         )}

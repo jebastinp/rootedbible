@@ -30,3 +30,8 @@ from app.models.challenge import (  # noqa
     RequestType,
     RequestStatus,
 )
+from app.models.church import Church, ChurchMember, CommunityPrivacy, ChurchStatus  # noqa
+from app.models.fellowship import Fellowship, FellowshipMember  # noqa
+from app.models.group import RootedGroup, UserGroupMembership  # noqa
+from app.models.notification import Notification  # noqa
+from app.models.leaderboard import LeaderboardConfig  # noqa

@@ -67,7 +67,7 @@ export default function QuizScreen() {
           {!result ? (
             <motion.div key="questions" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-6">
               {quiz.questions.map((q, idx) => (
-                <div key={q.id} className="bg-surface rounded-3xl p-5 shadow-soft">
+                <div key={q.id} className="bg-surface rounded-3xl p-5 shadow-soft border border-ink/5">
                   <p className="font-medium text-ink mb-3">{idx + 1}. {q.question}</p>
                   <div className="space-y-2">
                     {q.options.map((opt, optIdx) => (

@@ -33,7 +33,7 @@ export default function ForgotPasswordPage() {
 
   return (
     <AuthShell showTagline={false}>
-      <div className="bg-surface rounded-3xl shadow-card p-7">
+      <div className="bg-surface rounded-3xl shadow-card border border-ink/5 p-7">
         {sent ? (
           <div className="text-center space-y-4">
             <div className="w-14 h-14 rounded-full bg-secondary/10 flex items-center justify-center mx-auto">

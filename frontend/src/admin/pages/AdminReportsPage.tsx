@@ -69,7 +69,8 @@ export default function AdminReportsPage() {
           </button>
         </div>
 
-        <div className="bg-surface rounded-3xl shadow-soft overflow-hidden">
+        <div className="bg-surface rounded-3xl shadow-soft border border-ink/5 overflow-hidden">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-ink/5 text-left text-ink-soft text-xs uppercase tracking-wide">
@@ -110,6 +111,7 @@ export default function AdminReportsPage() {
               )}
             </tbody>
           </table>
+          </div>
         </div>
       </div>
     </div>

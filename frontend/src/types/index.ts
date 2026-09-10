@@ -13,6 +13,12 @@ export interface User {
   joined_date: string
   date_of_birth?: string | null
   created_at: string
+  house_no?: string | null
+  street_name?: string | null
+  city_name?: string | null
+  state_name?: string | null
+  postcode?: string | null
+  country?: string | null
 }
 
 export interface UserWithStats extends User {
@@ -98,13 +104,11 @@ export interface ChallengeAdmin {
   reading_plan_id?: string | null
   start_date?: string | null
   end_date?: string | null
-  participant_limit: number
+  participant_limit: number | null
   participant_count: number
   status: ChallengeStatus
   allow_families: boolean
-  family_limit: number
   allow_buddies: boolean
-  buddy_limit: number
   quiz_enabled: boolean
   rewards_enabled: boolean
   created_at: string
@@ -121,7 +125,7 @@ export interface ChallengeGroupSummary {
   id: string
   name: string
   member_count: number
-  max_members: number
+  max_members: number | null
   completed_today_count: number
 }
 
@@ -142,7 +146,7 @@ export interface ChallengeDetail {
   quiz_enabled: boolean
   rewards_enabled: boolean
   participant_count: number
-  participant_limit: number
+  participant_limit: number | null
 }
 
 export interface GroupMemberEntry {
@@ -156,11 +160,11 @@ export interface GroupMemberEntry {
 
 export interface GroupDetail {
   id: string
-  challenge_id: string
+  challenge_id?: string | null
   name: string
   description?: string | null
   my_role: GroupMemberRole
-  max_members: number
+  max_members: number | null
   members: GroupMemberEntry[]
 }
 
@@ -195,6 +199,26 @@ export interface ChallengeReward {
 
 export interface ChallengeRewardEarned extends ChallengeReward {
   earned: boolean
+}
+
+export interface LeaderboardConfig {
+  scope: string
+  label: string
+  ranking_limit: number
+}
+
+export interface LeaderboardEntry {
+  rank: number
+  entry_id: string
+  name: string
+  progress_percent: number
+}
+
+export interface Leaderboard {
+  scope: string
+  label: string
+  ranking_limit: number
+  entries: LeaderboardEntry[]
 }
 
 export interface Announcement {
@@ -232,4 +256,73 @@ export interface PaginatedResponse<T> {
   total: number
   page: number
   page_size: number
+}
+
+export type CommunityPrivacy = 'public' | 'private' | 'invite_only'
+
+export interface ChurchSummary {
+  id: string
+  name: string
+  church_code: string
+  description?: string | null
+  address?: string | null
+  privacy: CommunityPrivacy
+  status: string
+  member_count: number
+  my_role?: string | null
+  created_at: string
+}
+
+export interface CommunityMemberEntry {
+  user_id: string
+  name: string
+  photo_url?: string | null
+  role: string
+  joined_at: string
+}
+
+export interface ChurchDetail extends ChurchSummary {
+  members: CommunityMemberEntry[]
+}
+
+export interface FellowshipSummary {
+  id: string
+  name: string
+  description?: string | null
+  church_id?: string | null
+  church_name?: string | null
+  privacy: CommunityPrivacy
+  status: string
+  member_count: number
+  my_role?: string | null
+  created_at: string
+}
+
+export interface FellowshipDetail extends FellowshipSummary {
+  members: CommunityMemberEntry[]
+}
+
+export interface RootedGroupOut {
+  id: string
+  name: string
+  sort_order: number
+}
+
+export interface CommunityRequestAdmin {
+  request_id: string
+  user_id: string
+  name: string
+  requested_at: string
+}
+
+export interface GroupAdminSummary {
+  id: string
+  name: string
+  owner_user_id: string
+  owner_name: string
+  member_count: number
+  challenge_id?: string | null
+  challenge_name?: string | null
+  privacy: string
+  created_at: string
 }
