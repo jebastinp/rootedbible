@@ -50,22 +50,4 @@ export default defineConfig({
       },
     },
   },
-  build: {
-    rollupOptions: {
-      output: {
-        // Split heavy, rarely-changing vendor code into its own cacheable
-        // chunk(s) separate from app code, and keep the admin-only charting
-        // library out of every page's chunk entirely (it's already excluded
-        // by route-level lazy-loading in App.tsx, but this keeps it from
-        // ever leaking into a shared vendor chunk too).
-        manualChunks(id) {
-          if (!id.includes('node_modules')) return undefined
-          if (id.includes('recharts') || id.includes('d3-')) return 'vendor-charts'
-          if (id.includes('framer-motion')) return 'vendor-motion'
-          if (id.includes('react-dom') || id.includes('/react/') || id.includes('react-router')) return 'vendor-react'
-          return 'vendor'
-        },
-      },
-    },
-  },
 })
