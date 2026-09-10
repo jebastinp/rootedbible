@@ -23,7 +23,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine, inspect, text
 from alembic.config import Config
 from alembic import command
 
@@ -33,10 +33,20 @@ from app.core.config import settings
 def main() -> None:
     backend_dir = Path(__file__).resolve().parents[1]
     engine = create_engine(settings.DATABASE_URL)
+    with engine.connect() as conn:
+        # current_schema() is the FIRST schema on search_path with CREATE
+        # rights - i.e. exactly where an unqualified CREATE TABLE lands.
+        # has_table() with no schema= instead checks the whole search_path,
+        # which is wrong the moment another schema (e.g. a shared Postgres
+        # instance's `public`, kept on the path for extension functions
+        # like uuid_generate_v4()) also happens to contain a same-named
+        # table belonging to a completely different application.
+        target_schema = conn.execute(text("SELECT current_schema()")).scalar()
     inspector = inspect(engine)
-    has_alembic_table = inspector.has_table("alembic_version")
-    has_app_tables = inspector.has_table("users")
+    has_alembic_table = inspector.has_table("alembic_version", schema=target_schema)
+    has_app_tables = inspector.has_table("users", schema=target_schema)
     engine.dispose()
+    print(f"[migrate] target schema: {target_schema}", file=sys.stderr)
 
     cfg = Config(str(backend_dir / "alembic.ini"))
 
