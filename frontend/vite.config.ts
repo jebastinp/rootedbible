@@ -53,17 +53,24 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        // Split heavy, rarely-changing vendor code into its own cacheable
-        // chunk(s) separate from app code, and keep the admin-only charting
-        // library out of every page's chunk entirely (it's already excluded
-        // by route-level lazy-loading in App.tsx, but this keeps it from
-        // ever leaking into a shared vendor chunk too).
+        // Only split out recharts: it's large, admin-only, and always
+        // reached through a lazy import (never a static one), so it's
+        // guaranteed to load after the rest of the app has already
+        // initialized - safe to put in its own chunk.
+        //
+        // Splitting react/react-dom into their own chunk was tried and
+        // reverted: Rollup's manual chunking does not guarantee that
+        // chunk executes before other vendor code that calls
+        // React.createContext at module scope, and in production this
+        // produced "Cannot read properties of undefined (reading
+        // 'createContext')" - a real crash, not a caching artifact.
+        // Everything except recharts stays in Vite's default chunking,
+        // which does preserve correct dependency/execution order.
         manualChunks(id) {
-          if (!id.includes('node_modules')) return undefined
-          if (id.includes('recharts') || id.includes('d3-')) return 'vendor-charts'
-          if (id.includes('framer-motion')) return 'vendor-motion'
-          if (id.includes('react-dom') || id.includes('/react/') || id.includes('react-router')) return 'vendor-react'
-          return 'vendor'
+          if (id.includes('node_modules') && (id.includes('recharts') || id.includes('d3-'))) {
+            return 'vendor-charts'
+          }
+          return undefined
         },
       },
     },
