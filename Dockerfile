@@ -23,6 +23,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/ ./
+# Content-licensing registry (app/content/licensing.py resolves this at
+# /app/licensing/translations.json) - just the reviewed-and-hashed registry,
+# never the underlying evidence documents or Bible source XML, both of
+# which stay out of the image/repo entirely.
+COPY licensing/translations.json /app/licensing/translations.json
 COPY --from=frontend-build /frontend/dist /usr/share/nginx/html
 COPY nginx.conf.template /app/nginx.conf.template
 COPY start.sh /app/start.sh
