@@ -10,6 +10,20 @@ import './index.css'
 
 initNativeApp()
 
+// A route-level chunk (App.tsx now lazy-loads every page) can fail to fetch
+// when a phone still has an old deploy's asset URLs cached - most often a
+// stale service worker precache from before this build's chunk hashes
+// existed. Vite fires this exact event for that case; the fix is just a
+// reload, so do it automatically once rather than leaving the user stuck
+// on the static "could not load" fallback in index.html. Guarded by
+// sessionStorage so a genuinely broken deploy doesn't reload forever.
+window.addEventListener('vite:preloadError', () => {
+  const key = 'rooted-reloaded-after-preload-error'
+  if (sessionStorage.getItem(key)) return
+  sessionStorage.setItem(key, '1')
+  window.location.reload()
+})
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {

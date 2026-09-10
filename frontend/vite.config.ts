@@ -9,6 +9,18 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'logo.png', 'apple-touch-icon.png'],
+      // Without these, a new deploy's service worker sits "waiting" until
+      // every open tab of the OLD version is closed, so a phone that
+      // already has Rooted open (or installed to its home screen) keeps
+      // serving the previous deploy's cached index.html/app shell - which
+      // then requests JS chunk files that no longer exist on the server
+      // once a build changes chunk hashes, producing exactly the blank/
+      // "could not load" failure this was meant to fix.
+      workbox: {
+        skipWaiting: true,
+        clientsClaim: true,
+        cleanupOutdatedCaches: true,
+      },
       manifest: {
         name: 'Rooted - Bible Reading Tracker',
         short_name: 'Rooted',
