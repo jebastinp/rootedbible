@@ -5,11 +5,18 @@ import ProtectedRoute from './routes/ProtectedRoute'
 import MemberLayout from './components/layout/MemberLayout'
 import AdminLayout from './components/layout/AdminLayout'
 
-// Every routed page is code-split so a member never downloads the admin
-// bundle (recharts, papaparse, etc.) and vice versa - the entry bundle
-// used to ship the entire app (~1.4MB) on first load regardless of which
-// single page was actually needed, which is the main reason page loads
-// felt slow over a real network even though the code itself was fast.
+// The 5 bottom-nav destinations are loaded eagerly (bundled with the app
+// shell) so switching between them is instant, the way a native app's tab
+// bar feels - no per-tap network fetch. Everything else (detail pages,
+// settings, admin, the full-screen reader) is still code-split, since
+// those are visited far less often and the split is what keeps the very
+// first page load small.
+import HomePage from './features/home/HomePage'
+import BiblePage from './features/bible/BiblePage'
+import ProgressPage from './features/progress/ProgressPage'
+import CommunityPage from './features/community/CommunityPage'
+import ProfilePage from './features/profile/ProfilePage'
+
 const WelcomeAuthPage = lazy(() => import('./features/auth/WelcomeAuthPage'))
 const SignInPage = lazy(() => import('./features/auth/SignInPage'))
 const SignUpPage = lazy(() => import('./features/auth/SignUpPage'))
@@ -19,20 +26,15 @@ const VerifyEmailPage = lazy(() => import('./features/auth/VerifyEmailPage'))
 const StaffLoginPage = lazy(() => import('./features/auth/StaffLoginPage'))
 const AuthCallbackPage = lazy(() => import('./features/auth/AuthCallbackPage'))
 const OnboardingPage = lazy(() => import('./features/auth/OnboardingPage'))
-const HomePage = lazy(() => import('./features/home/HomePage'))
-const BiblePage = lazy(() => import('./features/bible/BiblePage'))
 const BibleBookPage = lazy(() => import('./features/bible/BibleBookPage'))
 const SearchPage = lazy(() => import('./features/bible/SearchPage'))
 const BookmarksPage = lazy(() => import('./features/bible/BookmarksPage'))
-const ProgressPage = lazy(() => import('./features/progress/ProgressPage'))
-const CommunityPage = lazy(() => import('./features/community/CommunityPage'))
 const CommunityRequestsPage = lazy(() => import('./features/community/CommunityRequestsPage'))
 const ChallengeDetailPage = lazy(() => import('./features/community/ChallengeDetailPage'))
 const GroupDetailPage = lazy(() => import('./features/community/GroupDetailPage'))
 const ChurchDetailPage = lazy(() => import('./features/community/ChurchDetailPage'))
 const FellowshipDetailPage = lazy(() => import('./features/community/FellowshipDetailPage'))
 const NotificationsPage = lazy(() => import('./features/notifications/NotificationsPage'))
-const ProfilePage = lazy(() => import('./features/profile/ProfilePage'))
 const NotesPage = lazy(() => import('./features/profile/NotesPage'))
 const HighlightsPage = lazy(() => import('./features/profile/HighlightsPage'))
 const AchievementsPage = lazy(() => import('./features/profile/AchievementsPage'))

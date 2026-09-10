@@ -56,7 +56,7 @@ export default function SearchPage() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Search Scripture... (e.g. John 3:16, love, Psalm 23)"
-          className="w-full pl-10 pr-10 py-3.5 rounded-2xl border border-ink/10 bg-surface text-sm focus:outline-none focus:ring-2 focus:ring-secondary/40"
+          className="w-full pl-10 pr-10 py-3.5 rounded-2xl border border-ink/10 bg-surface text-base focus:outline-none focus:ring-2 focus:ring-secondary/40"
         />
         {input && (
           <button onClick={() => setInput('')} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-ink-soft" aria-label="Clear search">

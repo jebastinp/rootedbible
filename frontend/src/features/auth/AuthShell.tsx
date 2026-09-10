@@ -6,13 +6,6 @@ import type { ReactNode } from 'react'
 export default function AuthShell({ children, showTagline = true }: { children: ReactNode; showTagline?: boolean }) {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-6 relative overflow-hidden">
-      <img
-        src="/hero-cross-hills.png"
-        alt=""
-        className="absolute top-0 left-0 w-full h-64 object-cover object-bottom opacity-60 pointer-events-none"
-      />
-      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/60 to-background pointer-events-none" />
-
       <motion.div
         initial={false}
         animate={{ opacity: 1, y: 0 }}

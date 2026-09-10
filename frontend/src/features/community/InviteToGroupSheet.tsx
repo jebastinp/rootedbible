@@ -69,7 +69,7 @@ export default function InviteToGroupSheet({
               onKeyDown={(e) => e.key === 'Enter' && search()}
               placeholder="e.g. JEBA001"
               autoFocus
-              className="flex-1 px-4 py-3 rounded-2xl border border-ink/10 bg-background text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-secondary/40"
+              className="flex-1 px-4 py-3 rounded-2xl border border-ink/10 bg-background text-base font-semibold focus:outline-none focus:ring-2 focus:ring-secondary/40"
               maxLength={20}
             />
             <button

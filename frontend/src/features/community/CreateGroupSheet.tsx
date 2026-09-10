@@ -63,7 +63,7 @@ export default function CreateGroupSheet({
               onChange={(e) => setName(e.target.value)}
               placeholder={kind === 'family' ? 'The Smith Family' : 'Bible Buddies'}
               autoFocus
-              className="w-full px-4 py-3 rounded-2xl border border-ink/10 bg-background text-sm focus:outline-none focus:ring-2 focus:ring-secondary/40"
+              className="w-full px-4 py-3 rounded-2xl border border-ink/10 bg-background text-base focus:outline-none focus:ring-2 focus:ring-secondary/40"
               maxLength={120}
             />
           </div>

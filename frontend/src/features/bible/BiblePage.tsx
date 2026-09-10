@@ -62,7 +62,7 @@ export default function BiblePage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Filter books..."
-          className="w-full px-4 py-3 rounded-2xl border border-ink/10 bg-surface text-sm focus:outline-none focus:ring-2 focus:ring-secondary/40"
+          className="w-full px-4 py-3 rounded-2xl border border-ink/10 bg-surface text-base focus:outline-none focus:ring-2 focus:ring-secondary/40"
         />
       )}
 

@@ -56,7 +56,7 @@ export default function TranslationPicker({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search translations..."
-            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-ink/10 bg-background/50 text-sm focus:outline-none focus:ring-2 focus:ring-secondary/40"
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-ink/10 bg-background/50 text-base focus:outline-none focus:ring-2 focus:ring-secondary/40"
           />
         </div>
 

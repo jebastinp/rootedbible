@@ -388,7 +388,7 @@ export default function ReadingScreen() {
                   onChange={(e) => setNoteDraft(e.target.value)}
                   placeholder="Write your reflection..."
                   rows={3}
-                  className="w-full rounded-2xl border border-ink/10 bg-surface p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  className="w-full rounded-2xl border border-ink/10 bg-surface p-3 text-base resize-none focus:outline-none focus:ring-2 focus:ring-primary/30"
                 />
                 <button onClick={handleSaveNote} disabled={!noteDraft.trim() || createNote.isPending} className="w-full bg-primary text-white font-semibold py-3 rounded-2xl disabled:opacity-50">
                   Save Note
