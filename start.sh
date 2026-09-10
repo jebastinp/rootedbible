@@ -29,6 +29,8 @@ echo "[start.sh] rendered nginx config for PORT=${PORT:-8080}"
 # visible through the browser/network tab and Railway's health check still
 # passes, instead of a silent "Application failed to respond" 502 with zero
 # diagnostic information.
+python -c 'from app.content.licensing import approved_web_codes, REGISTRY_PATH; print(f"[start.sh] licensing registry: {REGISTRY_PATH} exists={REGISTRY_PATH.exists()} approved={sorted(approved_web_codes())}")' 2>&1
+
 if python scripts/migrate.py; then
     echo "[start.sh] migrate: OK"
 else
