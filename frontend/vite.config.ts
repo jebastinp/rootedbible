@@ -8,7 +8,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'logo.png'],
+      includeAssets: ['favicon.svg', 'logo.png', 'apple-touch-icon.png'],
       manifest: {
         name: 'Rooted - Bible Reading Tracker',
         short_name: 'Rooted',
