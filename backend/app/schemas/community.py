@@ -13,6 +13,11 @@ class ChurchCreate(BaseModel):
     description: Optional[str] = Field(default=None, max_length=2000)
     address: Optional[str] = Field(default=None, max_length=500)
     privacy: str = Field(default="public", pattern="^(public|private|invite_only)$")
+    # If given, this Rooted ID becomes the church's owner (its scoped
+    # Church Admin) instead of whoever is creating it - lets a Super Admin
+    # register a church on a pastor/leader's behalf without the Super
+    # Admin permanently sitting in that church's own membership list.
+    admin_rooted_id: Optional[str] = Field(default=None, max_length=20)
 
 
 class ChurchOut(BaseModel):
@@ -48,6 +53,9 @@ class FellowshipCreate(BaseModel):
     description: Optional[str] = Field(default=None, max_length=2000)
     church_id: Optional[uuid.UUID] = None
     privacy: str = Field(default="public", pattern="^(public|private|invite_only)$")
+    # Same as Church.admin_rooted_id - assigns a specific person as this
+    # fellowship's owner/admin instead of the creator.
+    admin_rooted_id: Optional[str] = Field(default=None, max_length=20)
 
 
 class FellowshipOut(BaseModel):

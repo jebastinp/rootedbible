@@ -54,7 +54,7 @@ export default function InviteToGroupSheet({
           <button onClick={onClose} aria-label="Close"><X size={18} /></button>
         </div>
 
-        <p className="text-xs text-ink-soft -mt-2">Only people who already belong to this Church Challenge can be invited.</p>
+        <p className="text-xs text-ink-soft -mt-2">Invite anyone by their Rooted ID.</p>
 
         <div>
           <label className="text-xs font-semibold text-ink-soft uppercase tracking-wide mb-1.5 block">Rooted ID</label>

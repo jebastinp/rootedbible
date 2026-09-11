@@ -32,7 +32,7 @@ export function useChurchDetail(churchId: string | undefined) {
 export function useCreateChurch() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (payload: { name: string; description?: string; address?: string; privacy: string }) =>
+    mutationFn: async (payload: { name: string; description?: string; address?: string; privacy: string; admin_rooted_id?: string }) =>
       (await api.post<ChurchSummary>('/community/church', payload)).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: ['churches'] }),
   })
@@ -118,7 +118,7 @@ export function useFellowshipDetail(fellowshipId: string | undefined) {
 export function useCreateFellowship() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (payload: { name: string; description?: string; church_id?: string; privacy: string }) =>
+    mutationFn: async (payload: { name: string; description?: string; church_id?: string; privacy: string; admin_rooted_id?: string }) =>
       (await api.post<FellowshipSummary>('/community/fellowship', payload)).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: ['fellowships'] }),
   })

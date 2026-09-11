@@ -76,12 +76,13 @@ function CreateChurchModal({ onClose }: { onClose: () => void }) {
   const [description, setDescription] = useState('')
   const [address, setAddress] = useState('')
   const [privacy, setPrivacy] = useState('public')
+  const [adminRootedId, setAdminRootedId] = useState('')
   const create = useCreateChurch()
 
   function submit() {
     if (name.trim().length < 2) return toast.error('Give the church a name (at least 2 characters).')
     create.mutate(
-      { name: name.trim(), description: description.trim() || undefined, address: address.trim() || undefined, privacy },
+      { name: name.trim(), description: description.trim() || undefined, address: address.trim() || undefined, privacy, admin_rooted_id: adminRootedId.trim() || undefined },
       {
         onSuccess: (church) => {
           queryClient.invalidateQueries({ queryKey: ['admin-churches'] })
@@ -116,6 +117,17 @@ function CreateChurchModal({ onClose }: { onClose: () => void }) {
             <option value="private">Private - join by code only</option>
             <option value="invite_only">Invite only</option>
           </select>
+        </div>
+        <div>
+          <label className="text-xs font-semibold text-ink-soft uppercase tracking-wide mb-1 block">Church Admin - Rooted ID (optional)</label>
+          <input
+            value={adminRootedId}
+            onChange={(e) => setAdminRootedId(e.target.value.toUpperCase())}
+            placeholder="e.g. REH001"
+            className="admin-input"
+            maxLength={20}
+          />
+          <p className="text-xs text-ink-soft mt-1">Leave blank to become the admin yourself. This person manages only this church - never other churches.</p>
         </div>
         <button
           onClick={submit}

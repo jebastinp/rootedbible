@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import NotFoundError, ForbiddenError, ConflictError, ValidationError
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.models.church import Church, ChurchMember
 from app.models.fellowship import Fellowship, FellowshipMember
 from app.models.group import RootedGroup, UserGroupMembership
@@ -58,9 +58,18 @@ class CommunityService:
         row = self.db.query(MemberModel).filter(getattr(MemberModel, fk) == entity_id, MemberModel.user_id == user_id, MemberModel.status == "active").first()
         return row.role if row else None
 
+    def _is_platform_super_admin(self, user_id: uuid.UUID) -> bool:
+        user = self.db.query(User).filter(User.id == user_id).first()
+        return bool(user and user.role == UserRole.super_admin)
+
     def _require_membership(self, kind: str, entity_id: uuid.UUID, user_id: uuid.UUID):
         role = self._my_role(kind, entity_id, user_id)
         if not role:
+            # Super Admin has platform-wide override access to every
+            # organization, including ones they never joined - "owner" here
+            # is a synthetic role, not a real membership row.
+            if self._is_platform_super_admin(user_id):
+                return "owner"
             raise ForbiddenError(f"You are not a member of this {kind}.")
         return role
 
@@ -92,7 +101,12 @@ class CommunityService:
                 return code
         raise RuntimeError("Could not allocate a unique church code")
 
-    def admin_create_church(self, owner_id: uuid.UUID, payload: ChurchCreate) -> Church:
+    def admin_create_church(self, actor_id: uuid.UUID, payload: ChurchCreate) -> Church:
+        # If an admin_rooted_id is given, THAT person becomes the church's
+        # owner (its scoped Church Admin) - not whoever is submitting the
+        # form. Lets a Super Admin register a church on someone else's
+        # behalf without permanently joining that church themselves.
+        owner_id = self._get_user_by_rooted_id(payload.admin_rooted_id).id if payload.admin_rooted_id else actor_id
         church = Church(
             name=payload.name, description=payload.description, address=payload.address,
             owner_id=owner_id, church_code=self._generate_church_code(), privacy=payload.privacy,
@@ -100,7 +114,7 @@ class CommunityService:
         self.db.add(church)
         self.db.flush()
         self.db.add(ChurchMember(church_id=church.id, user_id=owner_id, role="owner", status="active"))
-        audit_service.record(self.db, owner_id, "church_created", "church", church.id, {"name": church.name})
+        audit_service.record(self.db, actor_id, "church_created", "church", church.id, {"name": church.name, "assigned_admin": str(owner_id)})
         self.db.commit()
         self.db.refresh(church)
         return church
@@ -230,14 +244,15 @@ class CommunityService:
     # -----------------------------------------------------------------
     # Fellowship
     # -----------------------------------------------------------------
-    def admin_create_fellowship(self, owner_id: uuid.UUID, payload: "FellowshipCreate") -> Fellowship:
+    def admin_create_fellowship(self, actor_id: uuid.UUID, payload: "FellowshipCreate") -> Fellowship:
         if payload.church_id:
-            self._require_membership("church", payload.church_id, owner_id)
+            self._require_membership("church", payload.church_id, actor_id)
+        owner_id = self._get_user_by_rooted_id(payload.admin_rooted_id).id if payload.admin_rooted_id else actor_id
         fellowship = Fellowship(name=payload.name, description=payload.description, church_id=payload.church_id, owner_id=owner_id, privacy=payload.privacy)
         self.db.add(fellowship)
         self.db.flush()
         self.db.add(FellowshipMember(fellowship_id=fellowship.id, user_id=owner_id, role="owner", status="active"))
-        audit_service.record(self.db, owner_id, "fellowship_created", "fellowship", fellowship.id, {"name": fellowship.name})
+        audit_service.record(self.db, actor_id, "fellowship_created", "fellowship", fellowship.id, {"name": fellowship.name, "assigned_admin": str(owner_id)})
         self.db.commit()
         self.db.refresh(fellowship)
         return fellowship

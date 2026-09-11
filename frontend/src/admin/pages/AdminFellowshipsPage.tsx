@@ -76,6 +76,7 @@ function CreateFellowshipModal({ onClose }: { onClose: () => void }) {
   const [description, setDescription] = useState('')
   const [churchId, setChurchId] = useState('')
   const [privacy, setPrivacy] = useState('public')
+  const [adminRootedId, setAdminRootedId] = useState('')
   const create = useCreateFellowship()
 
   const { data: churches } = useQuery({
@@ -86,7 +87,7 @@ function CreateFellowshipModal({ onClose }: { onClose: () => void }) {
   function submit() {
     if (name.trim().length < 2) return toast.error('Give the fellowship a name (at least 2 characters).')
     create.mutate(
-      { name: name.trim(), description: description.trim() || undefined, church_id: churchId || undefined, privacy },
+      { name: name.trim(), description: description.trim() || undefined, church_id: churchId || undefined, privacy, admin_rooted_id: adminRootedId.trim() || undefined },
       {
         onSuccess: (fellowship) => {
           queryClient.invalidateQueries({ queryKey: ['admin-fellowships'] })
@@ -126,6 +127,17 @@ function CreateFellowshipModal({ onClose }: { onClose: () => void }) {
             <option value="private">Private</option>
             <option value="invite_only">Invite only</option>
           </select>
+        </div>
+        <div>
+          <label className="text-xs font-semibold text-ink-soft uppercase tracking-wide mb-1 block">Fellowship Admin - Rooted ID (optional)</label>
+          <input
+            value={adminRootedId}
+            onChange={(e) => setAdminRootedId(e.target.value.toUpperCase())}
+            placeholder="e.g. REH001"
+            className="admin-input"
+            maxLength={20}
+          />
+          <p className="text-xs text-ink-soft mt-1">Leave blank to become the admin yourself. This person manages only this fellowship - never other fellowships.</p>
         </div>
         <button
           onClick={submit}
