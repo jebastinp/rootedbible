@@ -42,6 +42,12 @@ class Settings(BaseSettings):
     # CORS
     CORS_ORIGINS: List[str] = ["http://localhost:5173", "http://localhost:4173"]
 
+    # Permanent Super Admin - these emails are force-corrected to
+    # super_admin on every login, regardless of whatever their role
+    # happens to be in the database. Guards against this account ever
+    # being demoted or otherwise losing full platform control.
+    PERMANENT_SUPER_ADMIN_EMAILS: List[str] = ["admin.rootedbible@gmail.com"]
+
     @field_validator("DATABASE_URL", mode="before")
     @classmethod
     def normalize_database_url(cls, value: Any) -> Any:

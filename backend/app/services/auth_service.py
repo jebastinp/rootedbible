@@ -2,10 +2,11 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.exceptions import UnauthorizedError, ForbiddenError
 from app.core.security import create_access_token, create_refresh_token, decode_token, TokenError
 from app.core.supabase_auth import verify_supabase_access_token, SupabaseTokenError
-from app.models.user import UserStatus
+from app.models.user import UserRole, UserStatus
 from app.repositories.user_repository import UserRepository
 from app.schemas.user import TokenResponse, UserOut
 
@@ -19,6 +20,7 @@ class AuthService:
         user = self.users.get_by_user_code(user_code.strip())
         if not user:
             raise UnauthorizedError("User ID not found. Please check with your church admin.")
+        self._enforce_permanent_super_admin(user)
         self._check_status(user)
         user = self.users.update(user, last_login_at=datetime.utcnow(), auth_provider=user.auth_provider or "legacy")
         self.users._resolve_pending_admin_invites(user)
@@ -69,6 +71,7 @@ class AuthService:
                 )
                 is_new = True
 
+        self._enforce_permanent_super_admin(user)
         self._check_status(user)
         user = self.users.update(user, last_login_at=datetime.utcnow())
         # Resolve any pending Church/Fellowship admin-by-email invite for
@@ -101,6 +104,16 @@ class AuthService:
             raise ForbiddenError("This account has been suspended. Please contact your church admin.")
         if user.status == UserStatus.inactive:
             raise ForbiddenError("This account is inactive. Please contact your church admin.")
+
+    @staticmethod
+    def _enforce_permanent_super_admin(user) -> None:
+        """These emails always have full platform-wide Super Admin control -
+        self-heals every login, regardless of whatever role the account
+        happens to have in the database right now."""
+        permanent_emails = {e.strip().lower() for e in settings.PERMANENT_SUPER_ADMIN_EMAILS}
+        if user.email and user.email.strip().lower() in permanent_emails:
+            user.role = UserRole.super_admin
+            user.status = UserStatus.active
 
     def _issue_tokens(self, user) -> TokenResponse:
         access_token = create_access_token(subject=str(user.id), role=user.role.value, extra_claims={"user_code": user.user_id})
@@ -147,8 +160,12 @@ class AuthService:
 
         import uuid as uuid_lib
         user = self.users.get_by_id(uuid_lib.UUID(payload["sub"]))
-        if not user or user.status != UserStatus.active:
+        if not user:
             raise UnauthorizedError("User not found or inactive")
+        self._enforce_permanent_super_admin(user)
+        if user.status != UserStatus.active:
+            raise UnauthorizedError("User not found or inactive")
+        self.db.commit()
 
         access_token = create_access_token(subject=str(user.id), role=user.role.value, extra_claims={"user_code": user.user_id})
         new_refresh_token = create_refresh_token(subject=str(user.id))

@@ -30,16 +30,20 @@ export async function completeRootedSignIn(supabaseAccessToken: string): Promise
 
 export function postSignInPath(result: RootedSignInResult): string {
   if (result.needs_onboarding) return '/onboarding'
+  // Platform admin/super_admin ALWAYS lands on the Super Admin Dashboard,
+  // even if they also happen to own/admin a Church or Fellowship (e.g. they
+  // created it themselves, or used their own email as admin_email) - a
+  // platform-wide role must never be diverted to a single org's page.
+  if (['admin', 'super_admin'].includes(result.user.role)) return '/admin'
   // A Church/Fellowship's own owner/admin (assigned via admin_rooted_id or
   // admin_email at creation, or invited later) lands on THAT org's own
-  // admin page, not the regular member Home - this is separate from the
-  // platform-wide role check below, since running one church doesn't grant
-  // any platform-wide access.
+  // admin page instead of the regular member Home - this only applies to
+  // plain members, who have no platform-wide access of their own.
   if (result.admin_orgs?.length) {
     const org = result.admin_orgs[0]
     return `/community/${org.kind}/${org.org_id}/admin`
   }
-  return ['admin', 'super_admin'].includes(result.user.role) ? '/admin' : '/'
+  return '/'
 }
 
 /** Kicks off the Google OAuth redirect via Supabase. Returns a user-facing
