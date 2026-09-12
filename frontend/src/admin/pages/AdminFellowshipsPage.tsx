@@ -67,7 +67,7 @@ export default function AdminFellowshipsPage() {
                   <th className="px-5 py-3">Members</th>
                   <th className="px-5 py-3">Privacy</th>
                   <th className="px-5 py-3">Status</th>
-                  <th className="px-5 py-3">Pending Admin Invite</th>
+                  <th className="px-5 py-3">Assigned Admin</th>
                   <th className="px-5 py-3">Created</th>
                   <th className="px-5 py-3 text-right">Actions</th>
                 </tr>
