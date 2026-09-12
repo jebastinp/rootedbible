@@ -85,8 +85,10 @@ export default function App() {
         <Route path="/staff-login" element={<StaffLoginPage />} />
         <Route path="/auth/callback" element={<AuthCallbackPage />} />
 
-        {/* Member routes */}
-        <Route element={<ProtectedRoute allowedRoles={['member', 'leader', 'admin', 'super_admin']} />}>
+        {/* Member routes - platform admin/super_admin never see the member
+            app at all, only their own Admin Dashboard (see ProtectedRoute's
+            fallback redirect for that role). */}
+        <Route element={<ProtectedRoute allowedRoles={['member', 'leader']} />}>
           <Route element={<MemberLayout />}>
             <Route path="/" element={<HomePage />} />
             <Route path="/bible" element={<BiblePage />} />
@@ -137,7 +139,9 @@ export default function App() {
             <Route path="families" element={<AdminFamiliesPage />} />
             <Route path="buddy-groups" element={<AdminBuddyGroupsPage />} />
             <Route path="churches" element={<AdminChurchesPage />} />
+            <Route path="churches/:id/manage" element={<OrgAdminPage kind="church" />} />
             <Route path="fellowships" element={<AdminFellowshipsPage />} />
+            <Route path="fellowships/:id/manage" element={<OrgAdminPage kind="fellowship" />} />
             <Route path="quiz" element={<AdminQuizPage />} />
           </Route>
         </Route>

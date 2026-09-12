@@ -1,6 +1,7 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
-import { Loader2, Plus, Pencil, Trash2, Ban, CheckCircle2 } from 'lucide-react'
+import { Loader2, Plus, Pencil, Trash2, Ban, CheckCircle2, BookOpen } from 'lucide-react'
 import { toast } from 'sonner'
 import { api, getApiErrorMessage } from '@/lib/api'
 import { useCreateFellowship } from '@/features/community/useChurch'
@@ -8,6 +9,7 @@ import AdminPageHeader from '../components/AdminPageHeader'
 import type { FellowshipSummary, ChurchSummary } from '@/types'
 
 export default function AdminFellowshipsPage() {
+  const navigate = useNavigate()
   const [createOpen, setCreateOpen] = useState(false)
   const [editing, setEditing] = useState<FellowshipSummary | null>(null)
   const queryClient = useQueryClient()
@@ -87,6 +89,9 @@ export default function AdminFellowshipsPage() {
                     <td className="px-5 py-3 text-ink-soft">{new Date(f.created_at).toLocaleDateString()}</td>
                     <td className="px-5 py-3">
                       <div className="flex items-center justify-end gap-3">
+                        <button onClick={() => navigate(`/admin/fellowships/${f.id}/manage`)} className="text-ink-soft hover:text-primary" aria-label={`Manage ${f.name}'s reading plan and quiz`} title="Manage Reading Plan & Quiz">
+                          <BookOpen size={14} />
+                        </button>
                         <button onClick={() => setEditing(f)} className="text-ink-soft hover:text-primary" aria-label={`Edit ${f.name}`}>
                           <Pencil size={14} />
                         </button>

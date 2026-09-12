@@ -15,7 +15,11 @@ export default function ProtectedRoute({ allowedRoles }: Props) {
   }
 
   if (allowedRoles && !allowedRoles.includes(user.role)) {
-    return <Navigate to="/" replace />
+    // A platform admin/super_admin has no business in the member app at
+    // all - send them to their own dashboard instead of the member Home,
+    // which they're not allowed into either.
+    const fallback = ['admin', 'super_admin'].includes(user.role) ? '/admin' : '/'
+    return <Navigate to={fallback} replace />
   }
 
   return <Outlet />
