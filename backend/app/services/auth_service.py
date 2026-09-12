@@ -21,6 +21,8 @@ class AuthService:
             raise UnauthorizedError("User ID not found. Please check with your church admin.")
         self._check_status(user)
         user = self.users.update(user, last_login_at=datetime.utcnow(), auth_provider=user.auth_provider or "legacy")
+        self.users._resolve_pending_admin_invites(user)
+        self.db.commit()
         return self._issue_tokens(user)
 
     def login_with_supabase(self, supabase_access_token: str) -> TokenResponse:
@@ -69,6 +71,13 @@ class AuthService:
 
         self._check_status(user)
         user = self.users.update(user, last_login_at=datetime.utcnow())
+        # Resolve any pending Church/Fellowship admin-by-email invite for
+        # this email on EVERY login, not just brand-new signups - covers a
+        # person who already had a Rooted account before being invited, or
+        # who was invited again after their first login. Safe to call
+        # every time: a no-op once there's nothing pending for this email.
+        self.users._resolve_pending_admin_invites(user)
+        self.db.commit()
         response = self._issue_tokens(user)
         response.is_new_user = is_new
         # Onboarding is now a lightweight welcome/choice screen (explore the

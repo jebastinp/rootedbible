@@ -23,8 +23,8 @@ from app.models.challenge import JoinRequest, RequestStatus
 from app.services import audit_service
 from app.services.notification_service import notify
 from app.schemas.community import (
-    ChurchCreate, ChurchOut, ChurchDetailOut, ChurchMemberOut,
-    FellowshipCreate, FellowshipOut, FellowshipDetailOut,
+    ChurchCreate, ChurchOut, ChurchDetailOut, ChurchMemberOut, ChurchUpdate,
+    FellowshipCreate, FellowshipOut, FellowshipDetailOut, FellowshipUpdate,
     RootedGroupOut,
 )
 
@@ -210,10 +210,16 @@ class CommunityService:
         return church
 
     def _to_church_out(self, church: Church, user_id: uuid.UUID | None) -> ChurchOut:
+        my_role = self._my_role("church", church.id, user_id) if user_id else None
+        # user_id=None means "Super Admin's own platform-wide list" (see
+        # admin_list_all_churches, gated by require_admin) - always show the
+        # pending invite there; otherwise only this church's own admin sees it.
+        show_admin_fields = user_id is None or my_role in ("owner", "admin")
         return ChurchOut(
             id=church.id, name=church.name, church_code=church.church_code, description=church.description,
             address=church.address, privacy=church.privacy, status=church.status,
-            member_count=self._member_count("church", church.id), my_role=self._my_role("church", church.id, user_id) if user_id else None,
+            member_count=self._member_count("church", church.id), my_role=my_role,
+            pending_admin_email=church.pending_admin_email if show_admin_fields else None,
             created_at=church.created_at,
         )
 
@@ -225,6 +231,31 @@ class CommunityService:
     def admin_list_all_churches(self) -> list[ChurchOut]:
         churches = self.db.query(Church).order_by(Church.created_at.desc()).all()
         return [self._to_church_out(c, None) for c in churches]
+
+    def admin_update_church(self, actor_id: uuid.UUID, church_id: uuid.UUID, payload: ChurchUpdate) -> Church:
+        church = self._get_church(church_id)
+        changes = payload.model_dump(exclude_unset=True)
+        for field, value in changes.items():
+            if value is not None:
+                setattr(church, field, value)
+        audit_service.record(self.db, actor_id, "church_updated", "church", church.id, changes)
+        self.db.commit()
+        self.db.refresh(church)
+        return church
+
+    def admin_set_church_status(self, actor_id: uuid.UUID, church_id: uuid.UUID, status: str) -> Church:
+        church = self._get_church(church_id)
+        church.status = status
+        audit_service.record(self.db, actor_id, "church_status_changed", "church", church.id, {"status": status})
+        self.db.commit()
+        self.db.refresh(church)
+        return church
+
+    def admin_delete_church(self, actor_id: uuid.UUID, church_id: uuid.UUID) -> None:
+        church = self._get_church(church_id)
+        audit_service.record(self.db, actor_id, "church_deleted", "church", church.id, {"name": church.name})
+        self.db.delete(church)
+        self.db.commit()
 
     def list_my_churches(self, user_id: uuid.UUID) -> list[ChurchOut]:
         rows = self.db.query(ChurchMember).filter(ChurchMember.user_id == user_id, ChurchMember.status == "active").all()
@@ -362,16 +393,44 @@ class CommunityService:
         if fellowship.church_id:
             church = self.db.query(Church).filter(Church.id == fellowship.church_id).first()
             church_name = church.name if church else None
+        my_role = self._my_role("fellowship", fellowship.id, user_id) if user_id else None
+        show_admin_fields = user_id is None or my_role in ("owner", "admin")
         return FellowshipOut(
             id=fellowship.id, name=fellowship.name, fellowship_code=fellowship.fellowship_code, description=fellowship.description, church_id=fellowship.church_id,
             church_name=church_name, privacy=fellowship.privacy, status=fellowship.status,
-            member_count=self._member_count("fellowship", fellowship.id), my_role=self._my_role("fellowship", fellowship.id, user_id) if user_id else None,
+            member_count=self._member_count("fellowship", fellowship.id), my_role=my_role,
+            pending_admin_email=fellowship.pending_admin_email if show_admin_fields else None,
             created_at=fellowship.created_at,
         )
 
     def admin_list_all_fellowships(self) -> list[FellowshipOut]:
         fellowships = self.db.query(Fellowship).order_by(Fellowship.created_at.desc()).all()
         return [self._to_fellowship_out(f, None) for f in fellowships]
+
+    def admin_update_fellowship(self, actor_id: uuid.UUID, fellowship_id: uuid.UUID, payload: FellowshipUpdate) -> Fellowship:
+        fellowship = self._get_fellowship(fellowship_id)
+        changes = payload.model_dump(exclude_unset=True)
+        for field, value in changes.items():
+            if value is not None:
+                setattr(fellowship, field, value)
+        audit_service.record(self.db, actor_id, "fellowship_updated", "fellowship", fellowship.id, changes)
+        self.db.commit()
+        self.db.refresh(fellowship)
+        return fellowship
+
+    def admin_set_fellowship_status(self, actor_id: uuid.UUID, fellowship_id: uuid.UUID, status: str) -> Fellowship:
+        fellowship = self._get_fellowship(fellowship_id)
+        fellowship.status = status
+        audit_service.record(self.db, actor_id, "fellowship_status_changed", "fellowship", fellowship.id, {"status": status})
+        self.db.commit()
+        self.db.refresh(fellowship)
+        return fellowship
+
+    def admin_delete_fellowship(self, actor_id: uuid.UUID, fellowship_id: uuid.UUID) -> None:
+        fellowship = self._get_fellowship(fellowship_id)
+        audit_service.record(self.db, actor_id, "fellowship_deleted", "fellowship", fellowship.id, {"name": fellowship.name})
+        self.db.delete(fellowship)
+        self.db.commit()
 
     def list_discoverable_fellowships(self, user_id: uuid.UUID) -> list[FellowshipOut]:
         my_ids = {m.fellowship_id for m in self.db.query(FellowshipMember).filter(FellowshipMember.user_id == user_id, FellowshipMember.status == "active").all()}

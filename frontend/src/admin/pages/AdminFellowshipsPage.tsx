@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Loader2, Plus } from 'lucide-react'
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
+import { Loader2, Plus, Pencil, Trash2, Ban, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { api, getApiErrorMessage } from '@/lib/api'
 import { useCreateFellowship } from '@/features/community/useChurch'
@@ -9,9 +9,29 @@ import type { FellowshipSummary, ChurchSummary } from '@/types'
 
 export default function AdminFellowshipsPage() {
   const [createOpen, setCreateOpen] = useState(false)
+  const [editing, setEditing] = useState<FellowshipSummary | null>(null)
+  const queryClient = useQueryClient()
   const { data: fellowships, isLoading } = useQuery({
     queryKey: ['admin-fellowships'],
     queryFn: async () => (await api.get<FellowshipSummary[]>('/admin/fellowships')).data,
+  })
+
+  const toggleStatus = useMutation({
+    mutationFn: async (f: FellowshipSummary) => (await api.post(`/admin/fellowships/${f.id}/${f.status === 'active' ? 'deactivate' : 'activate'}`)).data,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-fellowships'] })
+      toast.success('Status updated')
+    },
+    onError: (err) => toast.error(getApiErrorMessage(err)),
+  })
+
+  const remove = useMutation({
+    mutationFn: async (id: string) => api.delete(`/admin/fellowships/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-fellowships'] })
+      toast.success('Fellowship deleted')
+    },
+    onError: (err) => toast.error(getApiErrorMessage(err)),
   })
 
   return (
@@ -45,7 +65,9 @@ export default function AdminFellowshipsPage() {
                   <th className="px-5 py-3">Members</th>
                   <th className="px-5 py-3">Privacy</th>
                   <th className="px-5 py-3">Status</th>
+                  <th className="px-5 py-3">Pending Admin Invite</th>
                   <th className="px-5 py-3">Created</th>
+                  <th className="px-5 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -56,8 +78,37 @@ export default function AdminFellowshipsPage() {
                     <td className="px-5 py-3 text-ink-soft">{f.church_name ?? '—'}</td>
                     <td className="px-5 py-3 text-ink-soft">{f.member_count}</td>
                     <td className="px-5 py-3 text-ink-soft capitalize">{f.privacy}</td>
-                    <td className="px-5 py-3 text-ink-soft capitalize">{f.status}</td>
+                    <td className="px-5 py-3">
+                      <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${f.status === 'active' ? 'bg-secondary/15 text-primary' : 'bg-red-100 text-red-700'}`}>
+                        {f.status}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3 text-ink-soft">{f.pending_admin_email || '—'}</td>
                     <td className="px-5 py-3 text-ink-soft">{new Date(f.created_at).toLocaleDateString()}</td>
+                    <td className="px-5 py-3">
+                      <div className="flex items-center justify-end gap-3">
+                        <button onClick={() => setEditing(f)} className="text-ink-soft hover:text-primary" aria-label={`Edit ${f.name}`}>
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          onClick={() => toggleStatus.mutate(f)}
+                          disabled={toggleStatus.isPending}
+                          className="text-ink-soft hover:text-primary"
+                          aria-label={f.status === 'active' ? `Deactivate ${f.name}` : `Reactivate ${f.name}`}
+                          title={f.status === 'active' ? 'Deactivate' : 'Reactivate'}
+                        >
+                          {f.status === 'active' ? <Ban size={14} /> : <CheckCircle2 size={14} />}
+                        </button>
+                        <button
+                          onClick={() => { if (confirm(`Permanently delete ${f.name}? This removes its members, reading plan, and quiz bank. This cannot be undone.`)) remove.mutate(f.id) }}
+                          disabled={remove.isPending}
+                          className="text-red-600 hover:text-red-700"
+                          aria-label={`Delete ${f.name}`}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -68,6 +119,58 @@ export default function AdminFellowshipsPage() {
       </div>
 
       {createOpen && <CreateFellowshipModal onClose={() => setCreateOpen(false)} />}
+      {editing && <EditFellowshipModal fellowship={editing} onClose={() => setEditing(null)} />}
+    </div>
+  )
+}
+
+function EditFellowshipModal({ fellowship, onClose }: { fellowship: FellowshipSummary; onClose: () => void }) {
+  const queryClient = useQueryClient()
+  const [name, setName] = useState(fellowship.name)
+  const [description, setDescription] = useState(fellowship.description ?? '')
+  const [privacy, setPrivacy] = useState<string>(fellowship.privacy)
+
+  const save = useMutation({
+    mutationFn: async () =>
+      (await api.patch(`/admin/fellowships/${fellowship.id}`, {
+        name: name.trim(), description: description.trim() || null, privacy,
+      })).data,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-fellowships'] })
+      toast.success('Fellowship updated')
+      onClose()
+    },
+    onError: (err) => toast.error(getApiErrorMessage(err)),
+  })
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm glass rounded-2xl shadow-card border border-ink/5 p-6 space-y-4">
+        <p className="text-lg font-semibold">Edit Fellowship</p>
+        <div>
+          <label className="text-xs font-semibold text-ink-soft uppercase tracking-wide mb-1 block">Name</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} className="admin-input" maxLength={200} />
+        </div>
+        <div>
+          <label className="text-xs font-semibold text-ink-soft uppercase tracking-wide mb-1 block">Description</label>
+          <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} className="admin-input" maxLength={2000} />
+        </div>
+        <div>
+          <label className="text-xs font-semibold text-ink-soft uppercase tracking-wide mb-1 block">Privacy</label>
+          <select value={privacy} onChange={(e) => setPrivacy(e.target.value)} className="admin-input">
+            <option value="public">Public - discoverable, anyone can request to join</option>
+            <option value="private">Private</option>
+            <option value="invite_only">Invite only</option>
+          </select>
+        </div>
+        <button
+          onClick={() => name.trim().length >= 2 ? save.mutate() : toast.error('Give the fellowship a name (at least 2 characters).')}
+          disabled={save.isPending}
+          className="w-full py-3 rounded-xl bg-primary text-white text-sm font-semibold disabled:opacity-60"
+        >
+          {save.isPending ? 'Saving…' : 'Save Changes'}
+        </button>
+      </div>
     </div>
   )
 }

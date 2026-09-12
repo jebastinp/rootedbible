@@ -272,6 +272,7 @@ export interface ChurchSummary {
   status: string
   member_count: number
   my_role?: string | null
+  pending_admin_email?: string | null
   created_at: string
 }
 
@@ -298,6 +299,7 @@ export interface FellowshipSummary {
   status: string
   member_count: number
   my_role?: string | null
+  pending_admin_email?: string | null
   created_at: string
 }
 

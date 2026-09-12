@@ -34,7 +34,18 @@ class ChurchOut(BaseModel):
     status: str
     member_count: int
     my_role: Optional[str] = None  # null if not a member (public discovery)
+    # Only populated for this church's own owner/admin or a Super Admin -
+    # null for anyone else, even other members.
+    pending_admin_email: Optional[str] = None
     created_at: datetime
+
+
+class ChurchUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=2, max_length=200)
+    description: Optional[str] = Field(default=None, max_length=2000)
+    address: Optional[str] = Field(default=None, max_length=500)
+    privacy: Optional[str] = Field(default=None, pattern="^(public|private|invite_only)$")
+    status: Optional[str] = Field(default=None, pattern="^(active|suspended)$")
 
 
 class ChurchMemberOut(BaseModel):
@@ -75,7 +86,16 @@ class FellowshipOut(BaseModel):
     status: str
     member_count: int
     my_role: Optional[str] = None
+    pending_admin_email: Optional[str] = None
     created_at: datetime
+
+
+class FellowshipUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=2, max_length=200)
+    description: Optional[str] = Field(default=None, max_length=2000)
+    church_id: Optional[uuid.UUID] = None
+    privacy: Optional[str] = Field(default=None, pattern="^(public|private|invite_only)$")
+    status: Optional[str] = Field(default=None, pattern="^(active|suspended)$")
 
 
 class FellowshipDetailOut(FellowshipOut):

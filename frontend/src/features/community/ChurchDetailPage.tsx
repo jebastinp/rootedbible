@@ -80,6 +80,14 @@ export default function ChurchDetailPage() {
         </div>
       )}
 
+      {isAdmin && church.pending_admin_email && (
+        <div className="bg-gold/10 rounded-3xl p-5 border border-gold/20">
+          <p className="text-xs font-semibold text-gold uppercase tracking-wide">Pending Admin Invite</p>
+          <p className="text-sm font-medium mt-0.5">{church.pending_admin_email}</p>
+          <p className="text-xs text-ink-soft mt-1">They'll automatically become this church's admin the moment they sign up with this email.</p>
+        </div>
+      )}
+
       {isAdmin && (
         <button
           onClick={() => navigate(`/community/church/${church.id}/admin`)}

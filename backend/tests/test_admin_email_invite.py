@@ -90,3 +90,37 @@ def test_invite_admin_by_email_adds_existing_user_as_admin_not_owner(db, make_us
     # ownership was never reassigned by this path
     db.refresh(church)
     assert church.owner_id == owner.id
+
+
+def test_pending_invite_resolves_at_login_even_if_the_account_was_created_outside_the_normal_signup_flow(db, make_user):
+    """Regression test: a user account can come into existence through a
+    path other than UserRepository.create() (e.g. CSV import builds a User
+    row directly), which would leave a pending_admin_email unresolved
+    forever if resolution only ran at account-creation time. AuthService
+    now re-checks on every login, so this must resolve there instead."""
+    from app.models.user import User, UserStatus
+    from app.services.auth_service import AuthService
+
+    creator = make_user()
+    community = CommunityService(db)
+    church = community.admin_create_church(creator.id, ChurchCreate(name="Grace Chapel", privacy="public", admin_email="bypassed.pastor@example.com"))
+    assert church.pending_admin_email == "bypassed.pastor@example.com"
+
+    # simulate a user created via a path that bypasses UserRepository.create()
+    bypassed_user = User(user_id="BYPASS01", name="Bypassed Pastor", email="bypassed.pastor@example.com", status=UserStatus.active)
+    db.add(bypassed_user)
+    db.flush()
+    db.commit()
+
+    # still pending - creation never ran the resolution hook
+    db.refresh(church)
+    assert church.pending_admin_email == "bypassed.pastor@example.com"
+    assert church.owner_id != bypassed_user.id
+
+    response = AuthService(db).login(bypassed_user.user_id)
+
+    db.refresh(church)
+    assert church.pending_admin_email is None
+    assert church.owner_id == bypassed_user.id
+    assert len(response.admin_orgs) == 1
+    assert response.admin_orgs[0].org_id == church.id
