@@ -85,7 +85,7 @@ export default function AdminFellowshipsPage() {
                         {f.status}
                       </span>
                     </td>
-                    <td className="px-5 py-3 text-ink-soft">{f.pending_admin_email || '—'}</td>
+                    <td className="px-5 py-3 text-ink-soft">{f.admin ? `${f.admin.name} (${f.admin.user_id})` : '—'}</td>
                     <td className="px-5 py-3 text-ink-soft">{new Date(f.created_at).toLocaleDateString()}</td>
                     <td className="px-5 py-3">
                       <div className="flex items-center justify-end gap-3">
@@ -134,13 +134,14 @@ function EditFellowshipModal({ fellowship, onClose }: { fellowship: FellowshipSu
   const [name, setName] = useState(fellowship.name)
   const [description, setDescription] = useState(fellowship.description ?? '')
   const [privacy, setPrivacy] = useState<string>(fellowship.privacy)
-  const [adminEmail, setAdminEmail] = useState(fellowship.pending_admin_email ?? '')
+  const currentAdminEmail = fellowship.admin?.email ?? ''
+  const [adminEmail, setAdminEmail] = useState(currentAdminEmail)
 
   const save = useMutation({
     mutationFn: async () =>
       (await api.patch(`/admin/fellowships/${fellowship.id}`, {
         name: name.trim(), description: description.trim() || null, privacy,
-        admin_email: adminEmail.trim() !== (fellowship.pending_admin_email ?? '') ? adminEmail.trim() : undefined,
+        admin_email: adminEmail.trim() !== currentAdminEmail ? adminEmail.trim() : undefined,
       })).data,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-fellowships'] })
@@ -173,7 +174,7 @@ function EditFellowshipModal({ fellowship, onClose }: { fellowship: FellowshipSu
         <div>
           <label className="text-xs font-semibold text-ink-soft uppercase tracking-wide mb-1 block">Admin Email</label>
           <input value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} placeholder="leader@example.com" className="admin-input" maxLength={255} />
-          <p className="text-xs text-ink-soft mt-1">Fix a mistyped invite, or set a new one. If this email already has a Rooted account, they become owner immediately. Leave blank to clear.</p>
+          <p className="text-xs text-ink-soft mt-1">Must be an existing Rooted member's registered email - they become this fellowship's admin immediately. Leave blank to remove the current admin.</p>
         </div>
         <button
           onClick={() => name.trim().length >= 2 ? save.mutate() : toast.error('Give the fellowship a name (at least 2 characters).')}
@@ -255,10 +256,10 @@ function CreateFellowshipModal({ onClose }: { onClose: () => void }) {
             className="admin-input"
             maxLength={20}
           />
-          <p className="text-xs text-ink-soft mt-1">Leave blank to become the admin yourself. This person manages only this fellowship - never other fellowships.</p>
+          <p className="text-xs text-ink-soft mt-1">Must be an existing Rooted member - they become this fellowship's admin immediately, managing only this fellowship. Leave blank to assign an admin later.</p>
         </div>
         <div>
-          <label className="text-xs font-semibold text-ink-soft uppercase tracking-wide mb-1 block">Or by email (if they haven't signed up yet)</label>
+          <label className="text-xs font-semibold text-ink-soft uppercase tracking-wide mb-1 block">Or by registered email</label>
           <input
             value={adminEmail}
             onChange={(e) => setAdminEmail(e.target.value)}
@@ -266,7 +267,7 @@ function CreateFellowshipModal({ onClose }: { onClose: () => void }) {
             className="admin-input"
             disabled={!!adminRootedId.trim()}
           />
-          <p className="text-xs text-ink-soft mt-1">The moment someone signs up with this email, they become this fellowship's admin automatically. Ignored if a Rooted ID is given above.</p>
+          <p className="text-xs text-ink-soft mt-1">Must belong to an existing Rooted member - they become this fellowship's admin immediately. Ignored if a Rooted ID is given above.</p>
         </div>
         <button
           onClick={submit}

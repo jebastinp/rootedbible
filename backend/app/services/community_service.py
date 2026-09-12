@@ -2,11 +2,17 @@
 Request -> Approval -> Membership pattern as Family/Buddy (see
 ChallengeService), sharing the same JoinRequest table via `type`.
 
-Unlike Family/Buddy (which any user creates for themselves), a Church or
-Fellowship may only be created by an admin/super_admin - enforced by
-`require_admin` on the POST /community/church and /community/fellowship
-routes. Members only ever join an existing one.
-"""
+Only Super Admin may create a Church or Fellowship (enforced by
+`require_super_admin` on the POST /community/church and
+/community/fellowship routes) - an `admin` already manages exactly one
+organization and can never create another. Members only ever join one.
+
+ROLE ARCHITECTURE (final): exactly 3 roles - member, admin, super_admin.
+`admin` is ALWAYS scoped to exactly one Church or Fellowship, tracked in
+AdminOrganizationAssignment - never inferred from ChurchMember/
+FellowshipMember.role, which is kept only as cosmetic/display membership
+metadata. See _is_org_admin, the single source of truth for "is this user
+the assigned admin of this organization"."""
 import secrets
 import string
 import uuid
@@ -18,6 +24,7 @@ from app.core.exceptions import NotFoundError, ForbiddenError, ConflictError, Va
 from app.models.user import User, UserRole
 from app.models.church import Church, ChurchMember
 from app.models.fellowship import Fellowship, FellowshipMember
+from app.models.admin_assignment import AdminOrganizationAssignment
 from app.models.group import RootedGroup, UserGroupMembership
 from app.models.challenge import JoinRequest, RequestStatus
 from app.services import audit_service
@@ -53,6 +60,9 @@ class CommunityService:
         return self.db.query(MemberModel).filter(getattr(MemberModel, fk) == entity_id, MemberModel.status == "active").count()
 
     def _my_role(self, kind: str, entity_id: uuid.UUID, user_id: uuid.UUID) -> str | None:
+        """Cosmetic/display membership role only (church_member/
+        fellowship_member.role) - NEVER the authorization source for admin
+        actions. See _is_org_admin for that."""
         MemberModel = self._member_model(kind)
         fk = self._fk(kind)
         row = self.db.query(MemberModel).filter(getattr(MemberModel, fk) == entity_id, MemberModel.user_id == user_id, MemberModel.status == "active").first()
@@ -62,45 +72,117 @@ class CommunityService:
         user = self.db.query(User).filter(User.id == user_id).first()
         return bool(user and user.role == UserRole.super_admin)
 
+    def _get_admin_assignment(self, user_id: uuid.UUID) -> AdminOrganizationAssignment | None:
+        return self.db.query(AdminOrganizationAssignment).filter(AdminOrganizationAssignment.user_id == user_id).first()
+
+    def _is_org_admin(self, kind: str, entity_id: uuid.UUID, user_id: uuid.UUID) -> bool:
+        """The ONLY source of truth for "is this user allowed to administer
+        this Church/Fellowship": role=super_admin (platform-wide override),
+        or role=admin AND their one AdminOrganizationAssignment points at
+        exactly this organization. ChurchMember/FellowshipMember.role is
+        never consulted here - being a plain member of an org (or even its
+        historical 'owner' membership row) grants no admin authority."""
+        user = self.db.query(User).filter(User.id == user_id).first()
+        if not user:
+            return False
+        if user.role == UserRole.super_admin:
+            return True
+        if user.role != UserRole.admin:
+            return False
+        assignment = self._get_admin_assignment(user_id)
+        if not assignment or assignment.organization_type != kind:
+            return False
+        fk = self._fk(kind)
+        return getattr(assignment, fk) == entity_id
+
     def _require_membership(self, kind: str, entity_id: uuid.UUID, user_id: uuid.UUID):
+        """Allowed to VIEW this org - its assigned admin, Super Admin, or a
+        regular member. Returns a display-only role string."""
+        if self._is_org_admin(kind, entity_id, user_id):
+            return "admin"
         role = self._my_role(kind, entity_id, user_id)
         if not role:
-            # Super Admin has platform-wide override access to every
-            # organization, including ones they never joined - "owner" here
-            # is a synthetic role, not a real membership row.
-            if self._is_platform_super_admin(user_id):
-                return "owner"
             raise ForbiddenError(f"You are not a member of this {kind}.")
         return role
 
     def _require_admin(self, kind: str, entity_id: uuid.UUID, user_id: uuid.UUID):
-        role = self._require_membership(kind, entity_id, user_id)
-        if role not in ("owner", "admin"):
-            raise ForbiddenError("Only the owner or an admin can do this.")
-        return role
+        if not self._is_org_admin(kind, entity_id, user_id):
+            raise ForbiddenError("Only this organization's assigned admin (or Super Admin) can do this.")
+        return "admin"
 
-    def invite_admin_by_email(self, actor_id: uuid.UUID, kind: str, entity_id: uuid.UUID, email: str) -> None:
-        """Adds another admin (not owner - ownership is never reassigned by
-        this path) to an EXISTING org, by email. Only works for someone who
-        has already signed up; pre-provisioning someone who hasn't yet is
-        done at creation time via admin_email, which is unambiguous about
-        making that specific person the church/fellowship's OWNER."""
-        self._require_admin(kind, entity_id, actor_id)
-        from app.repositories.user_repository import UserRepository
+    def assign_org_admin(
+        self, actor_id: uuid.UUID, kind: str, entity_id: uuid.UUID,
+        admin_rooted_id: str | None = None, admin_email: str | None = None, reassign: bool = False,
+    ) -> User:
+        """The ONLY way to make someone a Church/Fellowship's ADMIN. The
+        target must already be an existing Rooted member - there is no
+        "pending invite" state; an unresolvable email fails immediately
+        and clearly, matching the final architecture exactly. Super Admin
+        can never be assigned (their role is never downgraded), and a
+        person who already admins a DIFFERENT organization is rejected
+        unless the caller explicitly passes reassign=True."""
+        if admin_rooted_id:
+            target = self._get_user_by_rooted_id(admin_rooted_id)
+        elif admin_email:
+            from app.repositories.user_repository import UserRepository
+            normalized = admin_email.strip().lower()
+            target = UserRepository(self.db).get_by_email(normalized)
+            if not target:
+                raise NotFoundError(
+                    "No Rooted member exists with this email. They must register as a Rooted member first, using this exact registered email."
+                )
+        else:
+            raise ValidationError("Provide either an admin_rooted_id or an admin_email.")
 
-        normalized = email.strip().lower()
-        existing = UserRepository(self.db).get_by_email(normalized)
-        if not existing:
-            raise NotFoundError("No Rooted account exists yet for that email. Ask them to sign up first, then invite them.")
-        MemberModel = self._member_model(kind)
+        if target.role == UserRole.super_admin:
+            raise ValidationError("The Super Admin cannot be assigned as an organization Admin.")
+
         fk = self._fk(kind)
-        member = self.db.query(MemberModel).filter(getattr(MemberModel, fk) == entity_id, MemberModel.user_id == existing.id).first()
+
+        target_assignment = self._get_admin_assignment(target.id)
+        if target_assignment and getattr(target_assignment, fk) != entity_id:
+            if not reassign:
+                raise ConflictError(f"{target.name} already manages another organization. Reassign them explicitly if you want to move them here.")
+            self.db.delete(target_assignment)
+            self.db.flush()
+            target_assignment = None
+
+        current_assignment = self.db.query(AdminOrganizationAssignment).filter(getattr(AdminOrganizationAssignment, fk) == entity_id).first()
+        if current_assignment and current_assignment.user_id != target.id:
+            previous_admin = self.db.query(User).filter(User.id == current_assignment.user_id).first()
+            if previous_admin and previous_admin.role == UserRole.admin:
+                previous_admin.role = UserRole.member
+            self.db.delete(current_assignment)
+            self.db.flush()
+            current_assignment = None
+
+        if not target_assignment and not current_assignment:
+            self.db.add(AdminOrganizationAssignment(user_id=target.id, organization_type=kind, **{fk: entity_id}))
+
+        target.role = UserRole.admin
+
+        # Keep a membership row for display/continuity - cosmetic only,
+        # never consulted for authorization (see _is_org_admin).
+        MemberModel = self._member_model(kind)
+        member = self.db.query(MemberModel).filter(getattr(MemberModel, fk) == entity_id, MemberModel.user_id == target.id).first()
         if member:
             member.status = "active"
-            member.role = "admin"
+            member.role = "owner"
         else:
-            self.db.add(MemberModel(**{fk: entity_id, "user_id": existing.id, "role": "admin", "status": "active"}))
-        self.db.commit()
+            self.db.add(MemberModel(**{fk: entity_id, "user_id": target.id, "role": "owner", "status": "active"}))
+
+        # Legacy display field kept in sync.
+        entity_obj = self._get_church(entity_id) if kind == "church" else self._get_fellowship(entity_id)
+        entity_obj.owner_id = target.id
+
+        audit_service.record(self.db, actor_id, f"{kind}_admin_assigned", kind, entity_id, {"admin_user_id": str(target.id), "reassigned": reassign})
+        # Sessions in this app run with autoflush=False - without an
+        # explicit flush here, the new assignment row (and the role/member
+        # changes above) would stay invisible to any query run before the
+        # caller's own commit, including any the caller runs right after
+        # calling this method.
+        self.db.flush()
+        return target
 
     # -----------------------------------------------------------------
     # Active calendar - which org's own reading plan/quiz bank a member
@@ -167,38 +249,22 @@ class CommunityService:
                 return code
         raise RuntimeError("Could not allocate a unique church code")
 
-    def _resolve_admin_assignment(self, actor_id: uuid.UUID, admin_rooted_id: str | None, admin_email: str | None) -> tuple[uuid.UUID, str | None]:
-        """admin_rooted_id takes priority (that person already has an
-        account). Otherwise, admin_email either resolves to an existing
-        account immediately, or - if nobody has signed up with it yet - is
-        stashed as a pending invite that resolves itself the moment someone
-        does (see UserRepository.create). Falls back to the creator."""
-        if admin_rooted_id:
-            return self._get_user_by_rooted_id(admin_rooted_id).id, None
-        if admin_email:
-            from app.repositories.user_repository import UserRepository
-            normalized = admin_email.strip().lower()
-            existing = UserRepository(self.db).get_by_email(normalized)
-            if existing:
-                return existing.id, None
-            return actor_id, normalized
-        return actor_id, None
-
     def admin_create_church(self, actor_id: uuid.UUID, payload: ChurchCreate) -> Church:
-        # If an admin_rooted_id/admin_email is given, THAT person becomes
-        # the church's owner (its scoped Church Admin) - not whoever is
-        # submitting the form. Lets a Super Admin register a church on
-        # someone else's behalf without permanently joining that church
-        # themselves.
-        owner_id, pending_admin_email = self._resolve_admin_assignment(actor_id, payload.admin_rooted_id, payload.admin_email)
+        """Super Admin only (enforced at the API layer). If admin_rooted_id
+        or admin_email is given, that person must already be an existing
+        Rooted member - assign_org_admin raises immediately and clearly if
+        not; there is no pending/placeholder state. Without either, the
+        church has no admin yet until Super Admin assigns one."""
         church = Church(
             name=payload.name, description=payload.description, address=payload.address,
-            owner_id=owner_id, pending_admin_email=pending_admin_email, church_code=self._generate_church_code(), privacy=payload.privacy,
+            owner_id=actor_id, church_code=self._generate_church_code(), privacy=payload.privacy,
         )
         self.db.add(church)
         self.db.flush()
-        self.db.add(ChurchMember(church_id=church.id, user_id=owner_id, role="owner", status="active"))
-        audit_service.record(self.db, actor_id, "church_created", "church", church.id, {"name": church.name, "assigned_admin": str(owner_id)})
+        assigned_admin = None
+        if payload.admin_rooted_id or payload.admin_email:
+            assigned_admin = self.assign_org_admin(actor_id, "church", church.id, payload.admin_rooted_id, payload.admin_email)
+        audit_service.record(self.db, actor_id, "church_created", "church", church.id, {"name": church.name, "assigned_admin": str(assigned_admin.id) if assigned_admin else None})
         self.db.commit()
         self.db.refresh(church)
         return church
@@ -209,17 +275,39 @@ class CommunityService:
             raise NotFoundError("Church not found.")
         return church
 
+    def _get_org_admin_info(self, kind: str, entity_id: uuid.UUID):
+        from app.schemas.community import OrgAdminOut
+        fk = self._fk(kind)
+        assignment = self.db.query(AdminOrganizationAssignment).filter(getattr(AdminOrganizationAssignment, fk) == entity_id).first()
+        if not assignment:
+            return None
+        admin_user = self.db.query(User).filter(User.id == assignment.user_id).first()
+        if not admin_user:
+            return None
+        return OrgAdminOut(user_id=admin_user.user_id, name=admin_user.name, email=admin_user.email)
+
+    def remove_org_admin(self, actor_id: uuid.UUID, kind: str, entity_id: uuid.UUID) -> None:
+        fk = self._fk(kind)
+        assignment = self.db.query(AdminOrganizationAssignment).filter(getattr(AdminOrganizationAssignment, fk) == entity_id).first()
+        if not assignment:
+            return
+        admin_user = self.db.query(User).filter(User.id == assignment.user_id).first()
+        if admin_user and admin_user.role == UserRole.admin:
+            admin_user.role = UserRole.member
+        self.db.delete(assignment)
+        audit_service.record(self.db, actor_id, f"{kind}_admin_removed", kind, entity_id, {})
+
     def _to_church_out(self, church: Church, user_id: uuid.UUID | None) -> ChurchOut:
         my_role = self._my_role("church", church.id, user_id) if user_id else None
         # user_id=None means "Super Admin's own platform-wide list" (see
-        # admin_list_all_churches, gated by require_admin) - always show the
-        # pending invite there; otherwise only this church's own admin sees it.
-        show_admin_fields = user_id is None or my_role in ("owner", "admin")
+        # admin_list_all_churches, gated by require_super_admin) - always
+        # show the admin there; otherwise only this church's own admin sees it.
+        show_admin_fields = user_id is None or self._is_org_admin("church", church.id, user_id)
         return ChurchOut(
             id=church.id, name=church.name, church_code=church.church_code, description=church.description,
             address=church.address, privacy=church.privacy, status=church.status,
             member_count=self._member_count("church", church.id), my_role=my_role,
-            pending_admin_email=church.pending_admin_email if show_admin_fields else None,
+            admin=self._get_org_admin_info("church", church.id) if show_admin_fields else None,
             created_at=church.created_at,
         )
 
@@ -232,34 +320,6 @@ class CommunityService:
         churches = self.db.query(Church).order_by(Church.created_at.desc()).all()
         return [self._to_church_out(c, None) for c in churches]
 
-    def _apply_admin_email_correction(self, kind: str, entity, email: str) -> None:
-        """Corrects a mistyped pending admin invite email (or sets a new
-        one) on an EXISTING Church/Fellowship. If this email already
-        belongs to a Rooted account, that person becomes owner immediately
-        (same rule as at creation time); otherwise it just replaces the
-        pending invite email so the right person can resolve it later. An
-        empty string clears the pending invite entirely."""
-        from app.repositories.user_repository import UserRepository
-
-        normalized = email.strip().lower()
-        if not normalized:
-            entity.pending_admin_email = None
-            return
-        existing = UserRepository(self.db).get_by_email(normalized)
-        if existing:
-            entity.owner_id = existing.id
-            entity.pending_admin_email = None
-            MemberModel = self._member_model(kind)
-            fk = self._fk(kind)
-            member = self.db.query(MemberModel).filter(getattr(MemberModel, fk) == entity.id, MemberModel.user_id == existing.id).first()
-            if member:
-                member.status = "active"
-                member.role = "owner"
-            else:
-                self.db.add(MemberModel(**{fk: entity.id, "user_id": existing.id, "role": "owner", "status": "active"}))
-        else:
-            entity.pending_admin_email = normalized
-
     def admin_update_church(self, actor_id: uuid.UUID, church_id: uuid.UUID, payload: ChurchUpdate) -> Church:
         church = self._get_church(church_id)
         changes = payload.model_dump(exclude_unset=True)
@@ -268,7 +328,11 @@ class CommunityService:
             if value is not None:
                 setattr(church, field, value)
         if admin_email is not None:
-            self._apply_admin_email_correction("church", church, admin_email)
+            normalized = admin_email.strip()
+            if normalized:
+                self.assign_org_admin(actor_id, "church", church.id, admin_email=normalized, reassign=True)
+            else:
+                self.remove_org_admin(actor_id, "church", church.id)
         audit_service.record(self.db, actor_id, "church_updated", "church", church.id, changes)
         self.db.commit()
         self.db.refresh(church)
@@ -398,17 +462,16 @@ class CommunityService:
         raise RuntimeError("Could not allocate a unique fellowship code")
 
     def admin_create_fellowship(self, actor_id: uuid.UUID, payload: "FellowshipCreate") -> Fellowship:
-        if payload.church_id:
-            self._require_membership("church", payload.church_id, actor_id)
-        owner_id, pending_admin_email = self._resolve_admin_assignment(actor_id, payload.admin_rooted_id, payload.admin_email)
         fellowship = Fellowship(
             name=payload.name, fellowship_code=self._generate_fellowship_code(), description=payload.description,
-            church_id=payload.church_id, owner_id=owner_id, pending_admin_email=pending_admin_email, privacy=payload.privacy,
+            church_id=payload.church_id, owner_id=actor_id, privacy=payload.privacy,
         )
         self.db.add(fellowship)
         self.db.flush()
-        self.db.add(FellowshipMember(fellowship_id=fellowship.id, user_id=owner_id, role="owner", status="active"))
-        audit_service.record(self.db, actor_id, "fellowship_created", "fellowship", fellowship.id, {"name": fellowship.name, "assigned_admin": str(owner_id)})
+        assigned_admin = None
+        if payload.admin_rooted_id or payload.admin_email:
+            assigned_admin = self.assign_org_admin(actor_id, "fellowship", fellowship.id, payload.admin_rooted_id, payload.admin_email)
+        audit_service.record(self.db, actor_id, "fellowship_created", "fellowship", fellowship.id, {"name": fellowship.name, "assigned_admin": str(assigned_admin.id) if assigned_admin else None})
         self.db.commit()
         self.db.refresh(fellowship)
         return fellowship
@@ -425,12 +488,12 @@ class CommunityService:
             church = self.db.query(Church).filter(Church.id == fellowship.church_id).first()
             church_name = church.name if church else None
         my_role = self._my_role("fellowship", fellowship.id, user_id) if user_id else None
-        show_admin_fields = user_id is None or my_role in ("owner", "admin")
+        show_admin_fields = user_id is None or self._is_org_admin("fellowship", fellowship.id, user_id)
         return FellowshipOut(
             id=fellowship.id, name=fellowship.name, fellowship_code=fellowship.fellowship_code, description=fellowship.description, church_id=fellowship.church_id,
             church_name=church_name, privacy=fellowship.privacy, status=fellowship.status,
             member_count=self._member_count("fellowship", fellowship.id), my_role=my_role,
-            pending_admin_email=fellowship.pending_admin_email if show_admin_fields else None,
+            admin=self._get_org_admin_info("fellowship", fellowship.id) if show_admin_fields else None,
             created_at=fellowship.created_at,
         )
 
@@ -446,7 +509,11 @@ class CommunityService:
             if value is not None:
                 setattr(fellowship, field, value)
         if admin_email is not None:
-            self._apply_admin_email_correction("fellowship", fellowship, admin_email)
+            normalized = admin_email.strip()
+            if normalized:
+                self.assign_org_admin(actor_id, "fellowship", fellowship.id, admin_email=normalized, reassign=True)
+            else:
+                self.remove_org_admin(actor_id, "fellowship", fellowship.id)
         audit_service.record(self.db, actor_id, "fellowship_updated", "fellowship", fellowship.id, changes)
         self.db.commit()
         self.db.refresh(fellowship)

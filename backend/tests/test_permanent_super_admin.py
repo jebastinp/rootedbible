@@ -46,19 +46,21 @@ def test_permanent_super_admin_is_reactivated_even_if_suspended(db, make_user):
     assert response.user.status == UserStatus.active
 
 
-def test_permanent_super_admin_who_also_owns_a_church_still_has_super_admin_role(db, make_user):
-    """The actual bug report: this account creating/owning a Church must
-    never cost it its platform-wide role - admin_orgs is additive info for
-    frontend routing, never a substitute for the real role."""
+def test_permanent_super_admin_who_creates_a_church_is_never_tracked_as_its_admin(db, make_user):
+    """The actual bug report (earlier architecture): this account creating
+    a Church must never cost it its platform-wide role. Under the final
+    architecture this is even stronger - assign_org_admin refuses to ever
+    make a super_admin an org's ADMIN, so creating a church without
+    assigning someone else leaves it with no tracked admin at all, and
+    admin_orgs for this account stays empty."""
     user = make_user(role="member", email=TEST_PERMANENT_EMAIL)
     community = CommunityService(db)
-    church = community.admin_create_church(user.id, ChurchCreate(name="Grace Chapel", privacy="public"))
+    community.admin_create_church(user.id, ChurchCreate(name="Grace Chapel", privacy="public"))
 
     response = AuthService(db).login(user.user_id)
 
     assert response.user.role == UserRole.super_admin
-    assert len(response.admin_orgs) == 1
-    assert response.admin_orgs[0].org_id == church.id
+    assert response.admin_orgs == []
 
 
 def test_ordinary_users_are_not_affected(db, make_user):

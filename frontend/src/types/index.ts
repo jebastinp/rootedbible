@@ -1,4 +1,4 @@
-export type UserRole = 'member' | 'leader' | 'admin' | 'super_admin'
+export type UserRole = 'member' | 'admin' | 'super_admin'
 export type UserStatus = 'active' | 'inactive' | 'suspended'
 
 export interface User {
@@ -262,6 +262,12 @@ export interface PaginatedResponse<T> {
 
 export type CommunityPrivacy = 'public' | 'private' | 'invite_only'
 
+export interface OrgAdmin {
+  user_id: string
+  name: string
+  email?: string | null
+}
+
 export interface ChurchSummary {
   id: string
   name: string
@@ -272,7 +278,7 @@ export interface ChurchSummary {
   status: string
   member_count: number
   my_role?: string | null
-  pending_admin_email?: string | null
+  admin?: OrgAdmin | null
   created_at: string
 }
 
@@ -299,7 +305,7 @@ export interface FellowshipSummary {
   status: string
   member_count: number
   my_role?: string | null
-  pending_admin_email?: string | null
+  admin?: OrgAdmin | null
   created_at: string
 }
 

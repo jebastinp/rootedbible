@@ -8,9 +8,10 @@ from app.models.progress import ReadingProgress, UserStats
 from app.models.reading_plan import ReadingPlan
 from app.models.user import User, UserRole
 
-# Platform staff accounts (e.g. the seeded ADMIN001 super admin) manage Rooted -
-# they are not participants and must never appear ranked alongside real readers.
-_STAFF_ROLES = (UserRole.admin, UserRole.super_admin)
+# Only Super Admin (the platform owner account, e.g. seeded ADMIN001) is
+# excluded from leaderboards - an `admin` is a real member who also manages
+# one Church/Fellowship, and should still show up as a genuine reader.
+_STAFF_ROLES = (UserRole.super_admin,)
 
 
 class ProgressRepository:

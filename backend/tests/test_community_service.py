@@ -58,11 +58,12 @@ def test_group_create_does_not_require_challenge_participation(db, make_user):
 
 
 def test_church_join_by_code_then_approve(db, make_user):
+    super_admin = make_user(role="super_admin")
     owner = make_user()
     joiner = make_user()
     service = CommunityService(db)
 
-    church = service.admin_create_church(owner.id, ChurchCreate(name="Grace Chapel", privacy="public"))
+    church = service.admin_create_church(super_admin.id, ChurchCreate(name="Grace Chapel", privacy="public", admin_email=owner.email))
     assert church.church_code.startswith("ROOTED-")
 
     request = service.request_join_church(joiner.id, church_code=church.church_code)
@@ -77,11 +78,12 @@ def test_church_join_by_code_then_approve(db, make_user):
 
 
 def test_fellowship_join_by_code_then_approve(db, make_user):
+    super_admin = make_user(role="super_admin")
     owner = make_user()
     joiner = make_user()
     service = CommunityService(db)
 
-    fellowship = service.admin_create_fellowship(owner.id, FellowshipCreate(name="Youth Fellowship", privacy="public"))
+    fellowship = service.admin_create_fellowship(super_admin.id, FellowshipCreate(name="Youth Fellowship", privacy="public", admin_email=owner.email))
     assert fellowship.fellowship_code.startswith("ROOTED-")
 
     request = service.request_join_fellowship(joiner.id, fellowship_code=fellowship.fellowship_code)
@@ -96,10 +98,10 @@ def test_fellowship_join_by_code_then_approve(db, make_user):
 
 
 def test_fellowship_join_by_code_is_case_insensitive_and_unknown_code_rejected(db, make_user):
-    owner = make_user()
+    super_admin = make_user(role="super_admin")
     joiner = make_user()
     service = CommunityService(db)
-    fellowship = service.admin_create_fellowship(owner.id, FellowshipCreate(name="Men's Fellowship", privacy="public"))
+    fellowship = service.admin_create_fellowship(super_admin.id, FellowshipCreate(name="Men's Fellowship", privacy="public"))
 
     request = service.request_join_fellowship(joiner.id, fellowship_code=fellowship.fellowship_code.lower())
     assert request.fellowship_id == fellowship.id
@@ -113,9 +115,9 @@ def test_fellowship_join_by_code_is_case_insensitive_and_unknown_code_rejected(d
 def test_private_church_still_visible_to_platform_admin(db, make_user):
     """Rule 6: Super Admin must see every Family/Buddy/Church/Fellowship,
     including private ones, in the platform-wide admin listing."""
-    owner = make_user()
+    super_admin = make_user(role="super_admin")
     service = CommunityService(db)
-    church = service.admin_create_church(owner.id, ChurchCreate(name="Private Fellowship House", privacy="private"))
+    church = service.admin_create_church(super_admin.id, ChurchCreate(name="Private Fellowship House", privacy="private"))
 
     all_churches = service.admin_list_all_churches()
     ids = {c.id for c in all_churches}
@@ -128,10 +130,11 @@ def test_private_church_still_visible_to_platform_admin(db, make_user):
 
 
 def test_cannot_join_church_twice(db, make_user):
+    super_admin = make_user(role="super_admin")
     owner = make_user()
     joiner = make_user()
     service = CommunityService(db)
-    church = service.admin_create_church(owner.id, ChurchCreate(name="Second Request Church", privacy="public"))
+    church = service.admin_create_church(super_admin.id, ChurchCreate(name="Second Request Church", privacy="public", admin_email=owner.email))
     request = service.request_join_church(joiner.id, church_id=church.id)
     service.respond_to_church_request(owner.id, request.id, approve=True)
 
@@ -140,23 +143,23 @@ def test_cannot_join_church_twice(db, make_user):
 
 
 # -----------------------------------------------------------------------
-# Cross-organization isolation (production QA spec sections 1-21, 69):
-# a Church/Fellowship "admin" is scoped via ChurchMember/FellowshipMember
-# role=owner|admin for THAT organization only - never via the global
-# User.role field, which is reserved for platform admin/super_admin. These
-# tests prove Church A's owner cannot read or act on Church B's data by
-# any of the vectors the spec calls out (viewing, approving requests,
-# viewing members), i.e. an IDOR probe against the service layer directly
-# (the same layer the API routes call with no additional gate in between).
+# Cross-organization isolation (final architecture): an `admin` is scoped
+# to EXACTLY one organization via AdminOrganizationAssignment - never via
+# the global User.role field alone. These tests prove Church A's admin
+# cannot read or act on Church B's data by any of the vectors called out
+# (viewing, approving requests, viewing members), i.e. an IDOR probe
+# against the service layer directly (the same layer the API routes call
+# with no additional gate in between).
 # -----------------------------------------------------------------------
 def test_church_admin_cannot_view_another_churchs_pending_requests(db, make_user):
-    admin_a = make_user(role="admin")
-    admin_b = make_user(role="admin")
+    super_admin = make_user(role="super_admin")
+    admin_a = make_user()
+    admin_b = make_user()
     joiner = make_user()
     service = CommunityService(db)
 
-    church_a = service.admin_create_church(admin_a.id, ChurchCreate(name="Church A", privacy="public"))
-    church_b = service.admin_create_church(admin_b.id, ChurchCreate(name="Church B", privacy="public"))
+    church_a = service.admin_create_church(super_admin.id, ChurchCreate(name="Church A", privacy="public", admin_email=admin_a.email))
+    church_b = service.admin_create_church(super_admin.id, ChurchCreate(name="Church B", privacy="public", admin_email=admin_b.email))
     service.request_join_church(joiner.id, church_id=church_b.id)
 
     with pytest.raises(ForbiddenError):
@@ -168,13 +171,14 @@ def test_church_admin_cannot_view_another_churchs_pending_requests(db, make_user
 
 
 def test_church_admin_cannot_approve_another_churchs_request(db, make_user):
-    admin_a = make_user(role="admin")
-    admin_b = make_user(role="admin")
+    super_admin = make_user(role="super_admin")
+    admin_a = make_user()
+    admin_b = make_user()
     joiner = make_user()
     service = CommunityService(db)
 
-    service.admin_create_church(admin_a.id, ChurchCreate(name="Church A", privacy="public"))
-    church_b = service.admin_create_church(admin_b.id, ChurchCreate(name="Church B", privacy="public"))
+    service.admin_create_church(super_admin.id, ChurchCreate(name="Church A", privacy="public", admin_email=admin_a.email))
+    church_b = service.admin_create_church(super_admin.id, ChurchCreate(name="Church B", privacy="public", admin_email=admin_b.email))
     request = service.request_join_church(joiner.id, church_id=church_b.id)
 
     with pytest.raises(ForbiddenError):
@@ -186,12 +190,13 @@ def test_church_admin_cannot_approve_another_churchs_request(db, make_user):
 
 
 def test_church_admin_cannot_view_another_churchs_members(db, make_user):
-    admin_a = make_user(role="admin")
-    admin_b = make_user(role="admin")
+    super_admin = make_user(role="super_admin")
+    admin_a = make_user()
+    admin_b = make_user()
     service = CommunityService(db)
 
-    service.admin_create_church(admin_a.id, ChurchCreate(name="Church A", privacy="public"))
-    church_b = service.admin_create_church(admin_b.id, ChurchCreate(name="Church B", privacy="public"))
+    service.admin_create_church(super_admin.id, ChurchCreate(name="Church A", privacy="public", admin_email=admin_a.email))
+    church_b = service.admin_create_church(super_admin.id, ChurchCreate(name="Church B", privacy="public", admin_email=admin_b.email))
 
     # get_church_detail doesn't raise for a non-member - it just omits the
     # members list entirely, which is the correct "no access" behavior
@@ -201,13 +206,14 @@ def test_church_admin_cannot_view_another_churchs_members(db, make_user):
 
 
 def test_fellowship_admin_cannot_view_or_approve_another_fellowships_requests(db, make_user):
-    admin_a = make_user(role="admin")
-    admin_b = make_user(role="admin")
+    super_admin = make_user(role="super_admin")
+    admin_a = make_user()
+    admin_b = make_user()
     joiner = make_user()
     service = CommunityService(db)
 
-    service.admin_create_fellowship(admin_a.id, FellowshipCreate(name="Fellowship A", privacy="public"))
-    fellowship_b = service.admin_create_fellowship(admin_b.id, FellowshipCreate(name="Fellowship B", privacy="public"))
+    service.admin_create_fellowship(super_admin.id, FellowshipCreate(name="Fellowship A", privacy="public", admin_email=admin_a.email))
+    fellowship_b = service.admin_create_fellowship(super_admin.id, FellowshipCreate(name="Fellowship B", privacy="public", admin_email=admin_b.email))
     request = service.request_join_fellowship(joiner.id, fellowship_id=fellowship_b.id)
 
     with pytest.raises(ForbiddenError):
@@ -223,15 +229,16 @@ def test_fellowship_admin_cannot_view_or_approve_another_fellowships_requests(db
 
 
 def test_admin_role_alone_grants_no_church_access(db, make_user):
-    """The critical distinction: User.role == 'admin' is a platform-tier
-    flag (can create churches/fellowships, per the admin-only-creation
-    rule) - it must NOT, by itself, grant membership/admin rights inside
-    a specific church. Only an actual ChurchMember row does that."""
-    creator = make_user(role="admin")
-    other_admin = make_user(role="admin")
+    """The critical distinction: User.role == 'admin' means nothing on its
+    own - it must be paired with a matching AdminOrganizationAssignment.
+    A different `admin` (managing a DIFFERENT, or no, organization) must
+    never gain access just by sharing the role name."""
+    super_admin = make_user(role="super_admin")
+    creator_admin = make_user()
+    other_admin = make_user(role="admin")  # role=admin but no assignment at all
     service = CommunityService(db)
 
-    church = service.admin_create_church(creator.id, ChurchCreate(name="Isolated Church", privacy="public"))
+    church = service.admin_create_church(super_admin.id, ChurchCreate(name="Isolated Church", privacy="public", admin_email=creator_admin.email))
 
     with pytest.raises(ForbiddenError):
         service.list_pending_church_requests(other_admin.id, church.id)
@@ -264,12 +271,12 @@ def test_super_admin_can_override_and_manage_any_church(db, make_user):
     """Spec: 'Super Admin can access all organizations' - unlike a plain
     admin, super_admin must be able to act on a church it never joined
     (approve requests, etc.), not just view it read-only."""
-    church_owner = make_user(role="admin")
     super_admin = make_user(role="super_admin")
+    church_owner = make_user()
     joiner = make_user()
     service = CommunityService(db)
 
-    church = service.admin_create_church(church_owner.id, ChurchCreate(name="Church With Override", privacy="public"))
+    church = service.admin_create_church(super_admin.id, ChurchCreate(name="Church With Override", privacy="public", admin_email=church_owner.email))
     request = service.request_join_church(joiner.id, church_id=church.id)
 
     # super_admin never joined this church, but must still be able to act

@@ -24,8 +24,6 @@ class AuthService:
         self._enforce_permanent_super_admin(user)
         self._check_status(user)
         user = self.users.update(user, last_login_at=datetime.utcnow(), auth_provider=user.auth_provider or "legacy")
-        self.users._resolve_pending_admin_invites(user)
-        self.db.commit()
         return self._issue_tokens(user)
 
     def login_with_supabase(self, supabase_access_token: str) -> TokenResponse:
@@ -75,13 +73,6 @@ class AuthService:
         self._enforce_permanent_super_admin(user)
         self._check_status(user)
         user = self.users.update(user, last_login_at=datetime.utcnow())
-        # Resolve any pending Church/Fellowship admin-by-email invite for
-        # this email on EVERY login, not just brand-new signups - covers a
-        # person who already had a Rooted account before being invited, or
-        # who was invited again after their first login. Safe to call
-        # every time: a no-op once there's nothing pending for this email.
-        self.users._resolve_pending_admin_invites(user)
-        self.db.commit()
         response = self._issue_tokens(user)
         response.is_new_user = is_new
         # Onboarding is now a lightweight welcome/choice screen (explore the
@@ -129,29 +120,23 @@ class AuthService:
         )
 
     def _list_admin_orgs(self, user_id) -> list:
-        """Every Church/Fellowship this user owns/admins - lets the frontend
-        route them straight to that org's own admin page at sign-in without
-        granting them any platform-wide role."""
+        """The ONE Church/Fellowship this user administers, if any - see
+        AdminOrganizationAssignment, the single source of truth for
+        org-level ADMIN status. Returns at most one entry: an `admin`
+        manages exactly one organization, never more."""
         from app.schemas.user import AdminOrgOut
-        from app.models.church import Church, ChurchMember
-        from app.models.fellowship import Fellowship, FellowshipMember
+        from app.models.admin_assignment import AdminOrganizationAssignment
+        from app.models.church import Church
+        from app.models.fellowship import Fellowship
 
-        orgs = []
-        for member, church in (
-            self.db.query(ChurchMember, Church)
-            .join(Church, Church.id == ChurchMember.church_id)
-            .filter(ChurchMember.user_id == user_id, ChurchMember.status == "active", ChurchMember.role.in_(["owner", "admin"]))
-            .all()
-        ):
-            orgs.append(AdminOrgOut(kind="church", org_id=church.id, name=church.name))
-        for member, fellowship in (
-            self.db.query(FellowshipMember, Fellowship)
-            .join(Fellowship, Fellowship.id == FellowshipMember.fellowship_id)
-            .filter(FellowshipMember.user_id == user_id, FellowshipMember.status == "active", FellowshipMember.role.in_(["owner", "admin"]))
-            .all()
-        ):
-            orgs.append(AdminOrgOut(kind="fellowship", org_id=fellowship.id, name=fellowship.name))
-        return orgs
+        assignment = self.db.query(AdminOrganizationAssignment).filter(AdminOrganizationAssignment.user_id == user_id).first()
+        if not assignment:
+            return []
+        if assignment.organization_type == "church":
+            church = self.db.query(Church).filter(Church.id == assignment.church_id).first()
+            return [AdminOrgOut(kind="church", org_id=church.id, name=church.name)] if church else []
+        fellowship = self.db.query(Fellowship).filter(Fellowship.id == assignment.fellowship_id).first()
+        return [AdminOrgOut(kind="fellowship", org_id=fellowship.id, name=fellowship.name)] if fellowship else []
 
     def refresh(self, refresh_token: str) -> TokenResponse:
         try:

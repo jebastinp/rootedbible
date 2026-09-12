@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.api.deps import get_current_user, require_admin
+from app.api.deps import get_current_user, require_super_admin
 from app.core.exceptions import ValidationError
 from app.models.user import User
 from app.schemas.challenge import (
@@ -234,7 +234,7 @@ def list_my_churches(current_user: User = Depends(get_current_user), db: Session
 
 
 @router.post("/church", response_model=ChurchOut, summary="Create a Church (admin only)")
-def create_church(payload: ChurchCreate, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
+def create_church(payload: ChurchCreate, current_user: User = Depends(require_super_admin), db: Session = Depends(get_db)):
     svc = CommunityService(db)
     church = svc.admin_create_church(current_user.id, payload)
     return svc._to_church_out(church, current_user.id)
@@ -300,7 +300,7 @@ def list_my_fellowships(current_user: User = Depends(get_current_user), db: Sess
 
 
 @router.post("/fellowship", response_model=FellowshipOut, summary="Create a Fellowship (admin only)")
-def create_fellowship(payload: FellowshipCreate, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
+def create_fellowship(payload: FellowshipCreate, current_user: User = Depends(require_super_admin), db: Session = Depends(get_db)):
     svc = CommunityService(db)
     fellowship = svc.admin_create_fellowship(current_user.id, payload)
     return svc._to_fellowship_out(fellowship, current_user.id)

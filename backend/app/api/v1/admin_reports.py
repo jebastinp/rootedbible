@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 import pandas as pd
 
 from app.db.session import get_db
-from app.api.deps import require_admin, require_leader_up
+from app.api.deps import require_super_admin
 from app.models.user import User
 from app.schemas.misc import AdminDashboardOut, MemberReportRow
 from app.services.reports_service import ReportsService
@@ -15,22 +15,22 @@ router = APIRouter(prefix="/admin", tags=["Admin - Dashboard & Reports"])
 
 
 @router.get("/dashboard", response_model=AdminDashboardOut, summary="Admin dashboard cards + charts data")
-def dashboard(db: Session = Depends(get_db), _: User = Depends(require_leader_up)):
+def dashboard(db: Session = Depends(get_db), _: User = Depends(require_super_admin)):
     return ReportsService(db).dashboard()
 
 
 @router.get("/reports/members", response_model=list[MemberReportRow], summary="Full member report")
-def member_report(db: Session = Depends(get_db), _: User = Depends(require_admin)):
+def member_report(db: Session = Depends(get_db), _: User = Depends(require_super_admin)):
     return ReportsService(db).member_report()
 
 
 @router.get("/reports/inactive", response_model=list[MemberReportRow], summary="Members inactive for N+ days")
-def inactive_report(days: int = 7, db: Session = Depends(get_db), _: User = Depends(require_admin)):
+def inactive_report(days: int = 7, db: Session = Depends(get_db), _: User = Depends(require_super_admin)):
     return ReportsService(db).inactive_members(days)
 
 
 @router.get("/reports/members/export", summary="Export the member report as an Excel file")
-def export_member_report(db: Session = Depends(get_db), _: User = Depends(require_admin)):
+def export_member_report(db: Session = Depends(get_db), _: User = Depends(require_super_admin)):
     rows = ReportsService(db).member_report()
     df = pd.DataFrame([r.model_dump() for r in rows])
     buffer = io.BytesIO()

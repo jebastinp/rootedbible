@@ -99,44 +99,9 @@ class UserRepository:
         self.db.flush()
         # ensure stats row exists
         self.db.add(UserStats(user_id=user.id))
-        self._resolve_pending_admin_invites(user)
         self.db.commit()
         self.db.refresh(user)
         return user
-
-    def _resolve_pending_admin_invites(self, user: User) -> None:
-        """If a Church/Fellowship admin was pre-provisioned by this exact
-        email before they ever signed up (see CommunityService.
-        _resolve_admin_assignment / invite_admin_by_email), turn that
-        pending invite into a real owner/admin membership now that the
-        account exists. Every self-serve signup and admin-created member
-        funnels through this one create() method, so this is the single
-        place that needs to run this check."""
-        if not user.email:
-            return
-        from app.models.church import Church, ChurchMember
-        from app.models.fellowship import Fellowship, FellowshipMember
-
-        normalized = user.email.strip().lower()
-        for church in self.db.query(Church).filter(Church.pending_admin_email == normalized).all():
-            existing = self.db.query(ChurchMember).filter(ChurchMember.church_id == church.id, ChurchMember.user_id == user.id).first()
-            if existing:
-                existing.status = "active"
-                existing.role = "owner"
-            else:
-                self.db.add(ChurchMember(church_id=church.id, user_id=user.id, role="owner", status="active"))
-            church.owner_id = user.id
-            church.pending_admin_email = None
-
-        for fellowship in self.db.query(Fellowship).filter(Fellowship.pending_admin_email == normalized).all():
-            existing = self.db.query(FellowshipMember).filter(FellowshipMember.fellowship_id == fellowship.id, FellowshipMember.user_id == user.id).first()
-            if existing:
-                existing.status = "active"
-                existing.role = "owner"
-            else:
-                self.db.add(FellowshipMember(fellowship_id=fellowship.id, user_id=user.id, role="owner", status="active"))
-            fellowship.owner_id = user.id
-            fellowship.pending_admin_email = None
 
     def update(self, user: User, **kwargs) -> User:
         for key, value in kwargs.items():

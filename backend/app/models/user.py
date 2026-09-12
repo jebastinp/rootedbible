@@ -10,8 +10,10 @@ from app.db.base_class import Base
 
 
 class UserRole(str, enum.Enum):
+    """Exactly 3 roles, no others. `admin` is always organization-scoped -
+    see AdminOrganizationAssignment for which Church or Fellowship a given
+    admin manages. It is never platform-wide; that's `super_admin` alone."""
     member = "member"
-    leader = "leader"
     admin = "admin"
     super_admin = "super_admin"
 
@@ -70,4 +72,7 @@ class User(Base):
 
     @property
     def is_staff(self) -> bool:
-        return self.role in (UserRole.admin, UserRole.super_admin)
+        """Platform-wide staff - Super Admin only. An `admin` is scoped to
+        a single organization and is never platform staff (see
+        AdminOrganizationAssignment)."""
+        return self.role == UserRole.super_admin

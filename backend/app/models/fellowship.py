@@ -23,9 +23,8 @@ class Fellowship(Base):
     fellowship_code: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     church_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("church.id", ondelete="SET NULL"), nullable=True)
+    # Legacy display field only - see Church.owner_id.
     owner_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    # Same as Church.pending_admin_email - resolved automatically on signup.
-    pending_admin_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     privacy: Mapped[str] = mapped_column(String(20), nullable=False, default="public")
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

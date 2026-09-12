@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.api.deps import require_admin
+from app.api.deps import require_super_admin
 from app.models.user import User
 from app.models.misc import AuditLog
 
@@ -29,7 +29,7 @@ def list_audit_logs(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
-    _: User = Depends(require_admin),
+    _: User = Depends(require_super_admin),
 ):
     rows = (
         db.query(AuditLog, User)

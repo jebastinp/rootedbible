@@ -41,6 +41,11 @@ def require_roles(*roles: UserRole):
     return dependency
 
 
-require_admin = require_roles(UserRole.admin, UserRole.super_admin)
-require_leader_up = require_roles(UserRole.leader, UserRole.admin, UserRole.super_admin)
+
+# Platform-wide administrative capabilities (creating Churches/Fellowships,
+# managing the platform Bible calendar/quiz bank, viewing every member,
+# CSV import, reports, audit logs, ...) belong to Super Admin ALONE.
+# `admin` is always scoped to exactly one Church or Fellowship (see
+# AdminOrganizationAssignment) and must never reach these endpoints -
+# there is deliberately no "require_admin" that includes the `admin` role.
 require_super_admin = require_roles(UserRole.super_admin)

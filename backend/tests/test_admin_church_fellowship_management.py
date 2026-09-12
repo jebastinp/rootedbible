@@ -1,7 +1,9 @@
 """Integration tests (real DB, rolled back per test) for Super Admin's
 edit/deactivate/reactivate/delete controls over any Church or Fellowship,
-and for pending_admin_email being visible to admins (and hidden from
-regular members)."""
+and for correcting a Church/Fellowship's assigned admin via the same
+Edit action - the final architecture has no "pending invite" state, so
+correcting a typo means reassigning to the right (already-existing)
+member immediately."""
 import pytest
 
 from app.core.exceptions import NotFoundError
@@ -10,125 +12,127 @@ from app.schemas.community import ChurchCreate, FellowshipCreate, ChurchUpdate, 
 
 
 def test_super_admin_can_edit_a_church(db, make_user):
-    creator = make_user()
-    super_admin = make_user(role="super_admin")
+    creator = make_user(role="super_admin")
     community = CommunityService(db)
     church = community.admin_create_church(creator.id, ChurchCreate(name="Grace Chapel", privacy="public"))
 
-    updated = community.admin_update_church(super_admin.id, church.id, ChurchUpdate(name="New Name", privacy="private"))
+    updated = community.admin_update_church(creator.id, church.id, ChurchUpdate(name="New Name", privacy="private"))
 
     assert updated.name == "New Name"
     assert updated.privacy == "private"
 
 
 def test_super_admin_can_deactivate_and_reactivate_a_church(db, make_user):
-    creator = make_user()
-    super_admin = make_user(role="super_admin")
+    creator = make_user(role="super_admin")
     community = CommunityService(db)
     church = community.admin_create_church(creator.id, ChurchCreate(name="Grace Chapel", privacy="public"))
 
-    suspended = community.admin_set_church_status(super_admin.id, church.id, "suspended")
+    suspended = community.admin_set_church_status(creator.id, church.id, "suspended")
     assert suspended.status == "suspended"
 
-    reactivated = community.admin_set_church_status(super_admin.id, church.id, "active")
+    reactivated = community.admin_set_church_status(creator.id, church.id, "active")
     assert reactivated.status == "active"
 
 
 def test_super_admin_can_delete_a_church(db, make_user):
-    creator = make_user()
-    super_admin = make_user(role="super_admin")
+    creator = make_user(role="super_admin")
     community = CommunityService(db)
     church = community.admin_create_church(creator.id, ChurchCreate(name="Grace Chapel", privacy="public"))
 
-    community.admin_delete_church(super_admin.id, church.id)
+    community.admin_delete_church(creator.id, church.id)
 
     with pytest.raises(NotFoundError):
         community._get_church(church.id)
 
 
 def test_super_admin_can_edit_deactivate_delete_a_fellowship(db, make_user):
-    creator = make_user()
-    super_admin = make_user(role="super_admin")
+    creator = make_user(role="super_admin")
     community = CommunityService(db)
     fellowship = community.admin_create_fellowship(creator.id, FellowshipCreate(name="Youth Fellowship", privacy="public"))
 
-    updated = community.admin_update_fellowship(super_admin.id, fellowship.id, FellowshipUpdate(name="Renamed Fellowship"))
+    updated = community.admin_update_fellowship(creator.id, fellowship.id, FellowshipUpdate(name="Renamed Fellowship"))
     assert updated.name == "Renamed Fellowship"
 
-    suspended = community.admin_set_fellowship_status(super_admin.id, fellowship.id, "suspended")
+    suspended = community.admin_set_fellowship_status(creator.id, fellowship.id, "suspended")
     assert suspended.status == "suspended"
 
-    community.admin_delete_fellowship(super_admin.id, fellowship.id)
+    community.admin_delete_fellowship(creator.id, fellowship.id)
     with pytest.raises(NotFoundError):
         community._get_fellowship(fellowship.id)
 
 
-def test_pending_admin_email_visible_to_org_admin_and_super_admin_but_not_regular_member(db, make_user):
+def test_assigned_admin_visible_to_org_admin_and_super_admin_but_not_regular_member(db, make_user):
+    creator = make_user(role="super_admin")
     owner = make_user()
     member = make_user()
-    super_admin = make_user(role="super_admin")
     community = CommunityService(db)
-    church = community.admin_create_church(owner.id, ChurchCreate(name="Grace Chapel", privacy="public", admin_email="future.admin@example.com"))
+    church = community.admin_create_church(creator.id, ChurchCreate(name="Grace Chapel", privacy="public", admin_email=owner.email))
     request = community.request_join_church(member.id, church_id=church.id)
     community.respond_to_church_request(owner.id, request.id, approve=True)
 
     owner_view = community.get_church_detail(owner.id, church.id)
-    assert owner_view.pending_admin_email == "future.admin@example.com"
+    assert owner_view.admin.user_id == owner.user_id
 
     member_view = community.get_church_detail(member.id, church.id)
-    assert member_view.pending_admin_email is None
+    assert member_view.admin is None
 
     platform_list = community.admin_list_all_churches()
     listed = next(c for c in platform_list if c.id == church.id)
-    assert listed.pending_admin_email == "future.admin@example.com"
+    assert listed.admin.user_id == owner.user_id
 
 
-def test_super_admin_can_correct_a_mistyped_pending_admin_email(db, make_user):
+def test_super_admin_can_correct_a_mistyped_admin_email(db, make_user):
     """The actual bug report: a typo in the admin_email at creation time
-    (e.g. 'fewllowship' instead of 'fellowship') left the invite pending
-    for an email nobody will ever sign up with. Super Admin must be able
-    to fix the email afterward without recreating the whole org."""
-    creator = make_user()
-    super_admin = make_user(role="super_admin")
+    (e.g. 'fewllowship' instead of 'fellowship') assigned the wrong
+    person. Under the final architecture this must be resolved
+    immediately by reassigning to the correctly-spelled, ALREADY
+    REGISTERED email - never a silent pending state."""
+    creator = make_user(role="super_admin")
+    correct_admin = make_user(email="cousinsprayerfellowship@example.com")
     community = CommunityService(db)
     fellowship = community.admin_create_fellowship(
-        creator.id, FellowshipCreate(name="Cousins Prayer Fellowship", privacy="private", admin_email="cousinsprayerfewllowship@example.com")
+        creator.id, FellowshipCreate(name="Cousins Prayer Fellowship", privacy="private", admin_email="cousinsprayerfellowship@example.com")
     )
-    assert fellowship.pending_admin_email == "cousinsprayerfewllowship@example.com"
+    assert fellowship.owner_id == correct_admin.id
 
-    corrected = community.admin_update_fellowship(super_admin.id, fellowship.id, FellowshipUpdate(admin_email="cousinsprayerfellowship@example.com"))
-    assert corrected.pending_admin_email == "cousinsprayerfellowship@example.com"
+    # Super Admin corrects to a different (also already-registered) email
+    another_member = make_user(email="actual.leader@example.com")
+    community.admin_update_fellowship(creator.id, fellowship.id, FellowshipUpdate(admin_email="actual.leader@example.com"))
 
-    # now the correctly-spelled email resolves normally on signup
-    from app.repositories.user_repository import UserRepository
-    new_admin = UserRepository(db).create_with_unique_id("Cousins", name="Cousins Prayer Admin", email="cousinsprayerfellowship@example.com")
     db.refresh(fellowship)
-    assert fellowship.owner_id == new_admin.id
-    assert fellowship.pending_admin_email is None
+    assert fellowship.owner_id == another_member.id
+    assert community._is_org_admin("fellowship", fellowship.id, another_member.id)
+    assert not community._is_org_admin("fellowship", fellowship.id, correct_admin.id)
 
 
-def test_correcting_admin_email_to_an_existing_account_resolves_ownership_immediately(db, make_user):
-    creator = make_user()
-    super_admin = make_user(role="super_admin")
-    existing_user = make_user(email="already.signed.up@example.com")
+def test_admin_email_correction_to_an_unregistered_email_fails_clearly(db, make_user):
+    creator = make_user(role="super_admin")
     community = CommunityService(db)
-    church = community.admin_create_church(creator.id, ChurchCreate(name="Grace Chapel", privacy="public", admin_email="typo@example.com"))
+    church = community.admin_create_church(creator.id, ChurchCreate(name="Grace Chapel", privacy="public"))
 
-    community.admin_update_church(super_admin.id, church.id, ChurchUpdate(admin_email="already.signed.up@example.com"))
-
-    db.refresh(church)
-    assert church.owner_id == existing_user.id
-    assert church.pending_admin_email is None
-    assert community._my_role("church", church.id, existing_user.id) == "owner"
+    with pytest.raises(NotFoundError):
+        community.admin_update_church(creator.id, church.id, ChurchUpdate(admin_email="nobody.registered@example.com"))
 
 
-def test_admin_email_is_untouched_when_not_included_in_the_update_payload(db, make_user):
-    creator = make_user()
-    super_admin = make_user(role="super_admin")
+def test_admin_email_untouched_when_not_included_in_the_update_payload(db, make_user):
+    creator = make_user(role="super_admin")
+    owner = make_user()
     community = CommunityService(db)
-    church = community.admin_create_church(creator.id, ChurchCreate(name="Grace Chapel", privacy="public", admin_email="pending@example.com"))
+    church = community.admin_create_church(creator.id, ChurchCreate(name="Grace Chapel", privacy="public", admin_email=owner.email))
 
-    community.admin_update_church(super_admin.id, church.id, ChurchUpdate(name="Renamed Church"))
+    community.admin_update_church(creator.id, church.id, ChurchUpdate(name="Renamed Church"))
 
-    db.refresh(church)
-    assert church.pending_admin_email == "pending@example.com"
+    assert community._is_org_admin("church", church.id, owner.id)
+
+
+def test_admin_email_cleared_with_empty_string_demotes_admin_to_member(db, make_user):
+    creator = make_user(role="super_admin")
+    owner = make_user()
+    community = CommunityService(db)
+    church = community.admin_create_church(creator.id, ChurchCreate(name="Grace Chapel", privacy="public", admin_email=owner.email))
+
+    community.admin_update_church(creator.id, church.id, ChurchUpdate(admin_email=""))
+
+    db.refresh(owner)
+    assert owner.role.value == "member"
+    assert not community._is_org_admin("church", church.id, owner.id)

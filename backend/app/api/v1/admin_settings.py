@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.api.deps import require_admin, require_super_admin, get_current_user
+from app.api.deps import require_super_admin, get_current_user
 from app.core.exceptions import ConflictError
 from app.models.user import User
 from app.schemas.misc import (
@@ -23,24 +23,24 @@ def list_announcements(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
-    _: User = Depends(require_admin),
+    _: User = Depends(require_super_admin),
 ):
     items, total = AnnouncementService(db).list_all(page, page_size)
     return {"items": [AnnouncementOut.model_validate(a) for a in items], "total": total, "page": page, "page_size": page_size}
 
 
 @router.post("/announcements", response_model=AnnouncementOut, summary="Create an announcement")
-def create_announcement(payload: AnnouncementCreate, db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
+def create_announcement(payload: AnnouncementCreate, db: Session = Depends(get_db), current_user: User = Depends(require_super_admin)):
     return AnnouncementService(db).create(payload, created_by=current_user.id)
 
 
 @router.patch("/announcements/{announcement_id}", response_model=AnnouncementOut, summary="Edit an announcement")
-def update_announcement(announcement_id: uuid.UUID, payload: AnnouncementUpdate, db: Session = Depends(get_db), _: User = Depends(require_admin)):
+def update_announcement(announcement_id: uuid.UUID, payload: AnnouncementUpdate, db: Session = Depends(get_db), _: User = Depends(require_super_admin)):
     return AnnouncementService(db).update(announcement_id, payload)
 
 
 @router.delete("/announcements/{announcement_id}", summary="Delete an announcement")
-def delete_announcement(announcement_id: uuid.UUID, db: Session = Depends(get_db), _: User = Depends(require_admin)):
+def delete_announcement(announcement_id: uuid.UUID, db: Session = Depends(get_db), _: User = Depends(require_super_admin)):
     AnnouncementService(db).delete(announcement_id)
     return {"message": "Announcement deleted successfully"}
 
@@ -51,7 +51,7 @@ def get_settings(db: Session = Depends(get_db), current_user: User = Depends(get
 
 
 @router.patch("/settings", response_model=ChurchSettingsOut, summary="Update church settings")
-def update_settings(payload: ChurchSettingsUpdate, db: Session = Depends(get_db), _: User = Depends(require_admin)):
+def update_settings(payload: ChurchSettingsUpdate, db: Session = Depends(get_db), _: User = Depends(require_super_admin)):
     return SettingsService(db).update(payload)
 
 

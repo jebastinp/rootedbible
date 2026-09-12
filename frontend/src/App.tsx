@@ -88,7 +88,7 @@ export default function App() {
         {/* Member routes - platform admin/super_admin never see the member
             app at all, only their own Admin Dashboard (see ProtectedRoute's
             fallback redirect for that role). */}
-        <Route element={<ProtectedRoute allowedRoles={['member', 'leader']} />}>
+        <Route element={<ProtectedRoute allowedRoles={['member']} />}>
           <Route element={<MemberLayout />}>
             <Route path="/" element={<HomePage />} />
             <Route path="/bible" element={<BiblePage />} />
@@ -113,19 +113,23 @@ export default function App() {
             <Route path="/bookmarks" element={<BookmarksPage />} />
           </Route>
 
-          {/* Full-screen, distraction-free - deliberately NOT inside MemberLayout so the bottom nav/menus don't show.
-              The org-admin pages live here too: a Church/Fellowship admin must never see a bottom nav
-              tempting them into the member app - ProtectedRoute redirects them to exactly this path. */}
+          {/* Full-screen, distraction-free - deliberately NOT inside MemberLayout so the bottom nav/menus don't show. */}
           <Route path="/bible/search" element={<SearchPage />} />
           <Route path="/read/:book/:chapter" element={<ReadingScreen />} />
           <Route path="/quiz/:chapterId" element={<QuizScreen />} />
           <Route path="/onboarding" element={<OnboardingPage />} />
+        </Route>
+
+        {/* Org Admin routes - a Church/Fellowship's own assigned admin
+            (role=admin) lands here, on exactly this one path for their
+            one organization. No bottom nav, nothing else reachable. */}
+        <Route element={<ProtectedRoute allowedRoles={['admin', 'super_admin']} />}>
           <Route path="/community/church/:id/admin" element={<OrgAdminPage kind="church" />} />
           <Route path="/community/fellowship/:id/admin" element={<OrgAdminPage kind="fellowship" />} />
         </Route>
 
-        {/* Admin routes */}
-        <Route element={<ProtectedRoute allowedRoles={['admin', 'super_admin']} />}>
+        {/* Super Admin Dashboard - platform-wide, never reachable by `admin` */}
+        <Route element={<ProtectedRoute allowedRoles={['super_admin']} />}>
           <Route path="/admin" element={<AdminLayout />}>
             <Route index element={<AdminDashboardPage />} />
             <Route path="members" element={<AdminMembersPage />} />

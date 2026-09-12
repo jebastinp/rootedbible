@@ -43,7 +43,7 @@ def platform_today(db):
 def test_org_admin_can_run_own_calendar_isolated_from_platform(db, make_user, platform_today):
     owner = make_user()
     community = CommunityService(db)
-    church = community.admin_create_church(owner.id, ChurchCreate(name="Grace Chapel", privacy="public"))
+    church = community.admin_create_church(owner.id, ChurchCreate(name="Grace Chapel", privacy="public", admin_email=owner.email))
 
     church_plans = ReadingPlanService(db, church_id=church.id)
     church_plans.create(ReadingPlanCreate(day_number=1, reading_date=platform_today.reading_date, old_testament="Genesis 2", new_testament="Matthew 2"))
@@ -66,7 +66,7 @@ def test_non_admin_member_cannot_manage_org_reading_plan(db, make_user, platform
     owner = make_user()
     member = make_user()
     community = CommunityService(db)
-    church = community.admin_create_church(owner.id, ChurchCreate(name="Grace Chapel", privacy="public"))
+    church = community.admin_create_church(owner.id, ChurchCreate(name="Grace Chapel", privacy="public", admin_email=owner.email))
     request = community.request_join_church(member.id, church_id=church.id)
     community.respond_to_church_request(owner.id, request.id, approve=True)
 
@@ -78,7 +78,7 @@ def test_member_follows_platform_default_until_choosing_org_calendar(db, make_us
     owner = make_user()
     member = make_user()
     community = CommunityService(db)
-    church = community.admin_create_church(owner.id, ChurchCreate(name="Grace Chapel", privacy="public"))
+    church = community.admin_create_church(owner.id, ChurchCreate(name="Grace Chapel", privacy="public", admin_email=owner.email))
     request = community.request_join_church(member.id, church_id=church.id)
     community.respond_to_church_request(owner.id, request.id, approve=True)
 
@@ -98,7 +98,7 @@ def test_falls_back_to_platform_for_a_day_the_org_has_not_customized(db, make_us
     owner = make_user()
     member = make_user()
     community = CommunityService(db)
-    church = community.admin_create_church(owner.id, ChurchCreate(name="Grace Chapel", privacy="public"))
+    church = community.admin_create_church(owner.id, ChurchCreate(name="Grace Chapel", privacy="public", admin_email=owner.email))
     request = community.request_join_church(member.id, church_id=church.id)
     community.respond_to_church_request(owner.id, request.id, approve=True)
     community.set_active_calendar(member.id, "church", church.id)
@@ -122,15 +122,16 @@ def test_cannot_set_active_calendar_to_an_org_not_a_member_of(db, make_user):
 
 
 def test_calendar_options_only_lists_orgs_that_have_started_their_own_calendar(db, make_user):
-    owner = make_user()
+    super_admin = make_user(role="super_admin")
     member = make_user()
     community = CommunityService(db)
-    church_with_calendar = community.admin_create_church(owner.id, ChurchCreate(name="Has Calendar", privacy="public"))
-    church_without_calendar = community.admin_create_church(owner.id, ChurchCreate(name="No Calendar Yet", privacy="public"))
+    church_with_calendar = community.admin_create_church(super_admin.id, ChurchCreate(name="Has Calendar", privacy="public"))
+    church_without_calendar = community.admin_create_church(super_admin.id, ChurchCreate(name="No Calendar Yet", privacy="public"))
 
     for church in (church_with_calendar, church_without_calendar):
         request = community.request_join_church(member.id, church_id=church.id)
-        community.respond_to_church_request(owner.id, request.id, approve=True)
+        # super_admin has platform-wide override to approve on any org's behalf
+        community.respond_to_church_request(super_admin.id, request.id, approve=True)
 
     ReadingPlanService(db, church_id=church_with_calendar.id).create(
         ReadingPlanCreate(day_number=1, reading_date=date.today(), old_testament="Genesis 3")
@@ -146,7 +147,7 @@ def test_org_quiz_bank_isolated_from_platform_and_falls_back_when_empty(db, make
     owner = make_user()
     member = make_user()
     community = CommunityService(db)
-    church = community.admin_create_church(owner.id, ChurchCreate(name="Grace Chapel", privacy="public"))
+    church = community.admin_create_church(owner.id, ChurchCreate(name="Grace Chapel", privacy="public", admin_email=owner.email))
     request = community.request_join_church(member.id, church_id=church.id)
     community.respond_to_church_request(owner.id, request.id, approve=True)
 

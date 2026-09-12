@@ -6,6 +6,13 @@ interface Props {
   allowedRoles?: UserRole[]
 }
 
+/** Final architecture: exactly 3 roles, each with exactly one experience.
+ * - member -> the regular member app
+ * - admin -> ONLY their one assigned Church/Fellowship's own admin page
+ *   (see AdminOrganizationAssignment; adminOrgs has at most one entry)
+ * - super_admin -> ONLY the Super Admin Dashboard
+ * A role never reaches a route it's not allowed into, on any navigation -
+ * not only right after sign-in. */
 export default function ProtectedRoute({ allowedRoles }: Props) {
   const { isAuthenticated, user, adminOrgs } = useAuthStore()
   const location = useLocation()
@@ -14,24 +21,25 @@ export default function ProtectedRoute({ allowedRoles }: Props) {
     return <Navigate to="/login" state={{ from: location }} replace />
   }
 
-  if (allowedRoles && !allowedRoles.includes(user.role)) {
-    // A platform admin/super_admin has no business in the member app at
-    // all - send them to their own dashboard instead of the member Home,
-    // which they're not allowed into either.
-    const fallback = ['admin', 'super_admin'].includes(user.role) ? '/admin' : '/'
-    return <Navigate to={fallback} replace />
+  function ownDashboardPath(): string {
+    if (user!.role === 'super_admin') return '/admin'
+    if (user!.role === 'admin' && adminOrgs?.length) {
+      const org = adminOrgs[0]
+      return `/community/${org.kind}/${org.org_id}/admin`
+    }
+    return '/'
   }
 
-  // A Church/Fellowship's own admin (org-level, normally a plain "member"
-  // platform-wide) only ever sees THAT org's own admin page - never the
-  // regular member app - on every navigation, not only right after
-  // sign-in. Never applies to a platform admin/super_admin: their
-  // platform-wide role always wins, handled above.
-  if (adminOrgs?.length && !['admin', 'super_admin'].includes(user.role)) {
-    const org = adminOrgs[0]
-    const orgAdminPath = `/community/${org.kind}/${org.org_id}/admin`
-    if (location.pathname !== orgAdminPath) {
-      return <Navigate to={orgAdminPath} replace />
+  if (allowedRoles && !allowedRoles.includes(user.role)) {
+    return <Navigate to={ownDashboardPath()} replace />
+  }
+
+  // An `admin` must land on exactly one path - their own org's admin page -
+  // even within a route group that otherwise allows their role.
+  if (user.role === 'admin') {
+    const orgPath = ownDashboardPath()
+    if (location.pathname !== orgPath) {
+      return <Navigate to={orgPath} replace />
     }
   }
 

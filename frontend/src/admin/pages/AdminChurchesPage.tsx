@@ -83,7 +83,7 @@ export default function AdminChurchesPage() {
                         {c.status}
                       </span>
                     </td>
-                    <td className="px-5 py-3 text-ink-soft">{c.pending_admin_email || '—'}</td>
+                    <td className="px-5 py-3 text-ink-soft">{c.admin ? `${c.admin.name} (${c.admin.user_id})` : '—'}</td>
                     <td className="px-5 py-3 text-ink-soft">{new Date(c.created_at).toLocaleDateString()}</td>
                     <td className="px-5 py-3">
                       <div className="flex items-center justify-end gap-3">
@@ -133,13 +133,14 @@ function EditChurchModal({ church, onClose }: { church: ChurchSummary; onClose: 
   const [description, setDescription] = useState(church.description ?? '')
   const [address, setAddress] = useState(church.address ?? '')
   const [privacy, setPrivacy] = useState<string>(church.privacy)
-  const [adminEmail, setAdminEmail] = useState(church.pending_admin_email ?? '')
+  const currentAdminEmail = church.admin?.email ?? ''
+  const [adminEmail, setAdminEmail] = useState(currentAdminEmail)
 
   const save = useMutation({
     mutationFn: async () =>
       (await api.patch(`/admin/churches/${church.id}`, {
         name: name.trim(), description: description.trim() || null, address: address.trim() || null, privacy,
-        admin_email: adminEmail.trim() !== (church.pending_admin_email ?? '') ? adminEmail.trim() : undefined,
+        admin_email: adminEmail.trim() !== currentAdminEmail ? adminEmail.trim() : undefined,
       })).data,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-churches'] })
@@ -176,7 +177,7 @@ function EditChurchModal({ church, onClose }: { church: ChurchSummary; onClose: 
         <div>
           <label className="text-xs font-semibold text-ink-soft uppercase tracking-wide mb-1 block">Admin Email</label>
           <input value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} placeholder="pastor@example.com" className="admin-input" maxLength={255} />
-          <p className="text-xs text-ink-soft mt-1">Fix a mistyped invite, or set a new one. If this email already has a Rooted account, they become owner immediately. Leave blank to clear.</p>
+          <p className="text-xs text-ink-soft mt-1">Must be an existing Rooted member's registered email - they become this church's admin immediately. Leave blank to remove the current admin.</p>
         </div>
         <button
           onClick={() => name.trim().length >= 2 ? save.mutate() : toast.error('Give the church a name (at least 2 characters).')}
@@ -248,10 +249,10 @@ function CreateChurchModal({ onClose }: { onClose: () => void }) {
             className="admin-input"
             maxLength={20}
           />
-          <p className="text-xs text-ink-soft mt-1">Leave blank to become the admin yourself. This person manages only this church - never other churches.</p>
+          <p className="text-xs text-ink-soft mt-1">Must be an existing Rooted member - they become this church's admin immediately, managing only this church. Leave blank to assign an admin later.</p>
         </div>
         <div>
-          <label className="text-xs font-semibold text-ink-soft uppercase tracking-wide mb-1 block">Or by email (if they haven't signed up yet)</label>
+          <label className="text-xs font-semibold text-ink-soft uppercase tracking-wide mb-1 block">Or by registered email</label>
           <input
             value={adminEmail}
             onChange={(e) => setAdminEmail(e.target.value)}
@@ -259,7 +260,7 @@ function CreateChurchModal({ onClose }: { onClose: () => void }) {
             className="admin-input"
             disabled={!!adminRootedId.trim()}
           />
-          <p className="text-xs text-ink-soft mt-1">The moment someone signs up with this email, they become this church's admin automatically. Ignored if a Rooted ID is given above.</p>
+          <p className="text-xs text-ink-soft mt-1">Must belong to an existing Rooted member - they become this church's admin immediately. Ignored if a Rooted ID is given above.</p>
         </div>
         <button
           onClick={submit}

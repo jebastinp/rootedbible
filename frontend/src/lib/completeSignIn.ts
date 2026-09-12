@@ -24,21 +24,18 @@ export async function completeRootedSignIn(supabaseAccessToken: string): Promise
   return data
 }
 
+/** Final architecture: exactly 3 roles, each with exactly one destination.
+ * - super_admin -> Super Admin Dashboard, always, no exceptions.
+ * - admin -> their one assigned Church/Fellowship's own admin page
+ *   (see AdminOrganizationAssignment; admin_orgs has at most one entry).
+ * - member -> the regular member app (or onboarding, once, if brand new). */
 export function postSignInPath(result: RootedSignInResult): string {
-  if (result.needs_onboarding) return '/onboarding'
-  // Platform admin/super_admin ALWAYS lands on the Super Admin Dashboard,
-  // even if they also happen to own/admin a Church or Fellowship (e.g. they
-  // created it themselves, or used their own email as admin_email) - a
-  // platform-wide role must never be diverted to a single org's page.
-  if (['admin', 'super_admin'].includes(result.user.role)) return '/admin'
-  // A Church/Fellowship's own owner/admin (assigned via admin_rooted_id or
-  // admin_email at creation, or invited later) lands on THAT org's own
-  // admin page instead of the regular member Home - this only applies to
-  // plain members, who have no platform-wide access of their own.
-  if (result.admin_orgs?.length) {
+  if (result.user.role === 'super_admin') return '/admin'
+  if (result.user.role === 'admin' && result.admin_orgs?.length) {
     const org = result.admin_orgs[0]
     return `/community/${org.kind}/${org.org_id}/admin`
   }
+  if (result.needs_onboarding) return '/onboarding'
   return '/'
 }
 

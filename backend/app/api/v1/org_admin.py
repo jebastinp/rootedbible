@@ -1,9 +1,9 @@
-"""Per-organization admin management: each Church/Fellowship's own owner/
-admin can run their OWN reading-plan calendar and quiz question bank,
-completely separate from the shared platform ones and from every other
-org's - gated by CommunityService._require_admin, the same per-org
-ownership check every other Church/Fellowship admin action uses (never the
-platform-wide require_admin dependency)."""
+"""Per-organization admin management: each Church/Fellowship's own ADMIN
+(see AdminOrganizationAssignment) can run their OWN reading-plan calendar
+and quiz question bank, completely separate from the shared platform ones
+and from every other org's - gated by CommunityService._require_admin,
+the same per-org check every other Church/Fellowship admin action uses
+(never a platform-wide dependency - `admin` never gets platform access)."""
 import uuid
 
 from fastapi import APIRouter, Depends, Query, UploadFile, File, Form
@@ -14,7 +14,6 @@ from app.api.deps import get_current_user
 from app.models.user import User
 from app.schemas.reading import ReadingPlanOut, ReadingPlanCreate, ReadingPlanUpdate
 from app.schemas.quiz import QuizQuestionAdminOut, QuizQuestionCreate, QuizQuestionUpdate
-from app.schemas.community import InviteAdminByEmail
 from app.schemas.misc import CsvPreviewResponse, CsvImportResult
 from app.services.community_service import CommunityService
 from app.services.reading_plan_service import ReadingPlanService
@@ -115,15 +114,7 @@ def _register_quiz_csv_routes(kind: str) -> None:
         return CsvImportService(db).confirm(import_token, imported_by=current_user.id)
 
 
-def _register_admin_invite_route(kind: str) -> None:
-    @router.post(f"/{kind}/{{org_id}}/invite-admin-by-email", summary=f"Add another admin to this {kind} by email (they must already have a Rooted account)")
-    def invite_admin(org_id: uuid.UUID, payload: InviteAdminByEmail, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-        CommunityService(db).invite_admin_by_email(current_user.id, kind, org_id, payload.email)
-        return {"success": True}
-
-
 for _kind in ("church", "fellowship"):
     _register_reading_plan_routes(_kind)
     _register_quiz_routes(_kind)
     _register_quiz_csv_routes(_kind)
-    _register_admin_invite_route(_kind)
