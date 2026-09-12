@@ -100,9 +100,7 @@ export default function App() {
             <Route path="/community/family/:id" element={<GroupDetailPage kind="family" />} />
             <Route path="/community/buddy-group/:id" element={<GroupDetailPage kind="buddy" />} />
             <Route path="/community/church/:id" element={<ChurchDetailPage />} />
-            <Route path="/community/church/:id/admin" element={<OrgAdminPage kind="church" />} />
             <Route path="/community/fellowship/:id" element={<FellowshipDetailPage />} />
-            <Route path="/community/fellowship/:id/admin" element={<OrgAdminPage kind="fellowship" />} />
             <Route path="/notifications" element={<NotificationsPage />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/plans" element={<PlanOverviewPage />} />
@@ -115,11 +113,15 @@ export default function App() {
             <Route path="/bookmarks" element={<BookmarksPage />} />
           </Route>
 
-          {/* Full-screen, distraction-free - deliberately NOT inside MemberLayout so the bottom nav/menus don't show. */}
+          {/* Full-screen, distraction-free - deliberately NOT inside MemberLayout so the bottom nav/menus don't show.
+              The org-admin pages live here too: a Church/Fellowship admin must never see a bottom nav
+              tempting them into the member app - ProtectedRoute redirects them to exactly this path. */}
           <Route path="/bible/search" element={<SearchPage />} />
           <Route path="/read/:book/:chapter" element={<ReadingScreen />} />
           <Route path="/quiz/:chapterId" element={<QuizScreen />} />
           <Route path="/onboarding" element={<OnboardingPage />} />
+          <Route path="/community/church/:id/admin" element={<OrgAdminPage kind="church" />} />
+          <Route path="/community/fellowship/:id/admin" element={<OrgAdminPage kind="fellowship" />} />
         </Route>
 
         {/* Admin routes */}

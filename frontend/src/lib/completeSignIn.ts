@@ -1,13 +1,9 @@
 import { supabase } from './supabaseClient'
 import { api } from './api'
-import { useAuthStore } from '@/store/authStore'
+import { useAuthStore, type AdminOrg } from '@/store/authStore'
 import type { User } from '@/types'
 
-export interface AdminOrg {
-  kind: 'church' | 'fellowship'
-  org_id: string
-  name: string
-}
+export type { AdminOrg }
 
 export interface RootedSignInResult {
   access_token: string
@@ -23,7 +19,7 @@ export interface RootedSignInResult {
  * the Supabase side - only Rooted's own JWT is used for API calls after this. */
 export async function completeRootedSignIn(supabaseAccessToken: string): Promise<RootedSignInResult> {
   const { data } = await api.post<RootedSignInResult>('/auth/supabase', { access_token: supabaseAccessToken })
-  useAuthStore.getState().setSession(data.access_token, data.refresh_token, data.user)
+  useAuthStore.getState().setSession(data.access_token, data.refresh_token, data.user, data.admin_orgs)
   await supabase.auth.signOut()
   return data
 }

@@ -169,4 +169,7 @@ class AuthService:
 
         access_token = create_access_token(subject=str(user.id), role=user.role.value, extra_claims={"user_code": user.user_id})
         new_refresh_token = create_refresh_token(subject=str(user.id))
-        return TokenResponse(access_token=access_token, refresh_token=new_refresh_token, user=UserOut.model_validate(user))
+        return TokenResponse(
+            access_token=access_token, refresh_token=new_refresh_token, user=UserOut.model_validate(user),
+            admin_orgs=self._list_admin_orgs(user.id),
+        )

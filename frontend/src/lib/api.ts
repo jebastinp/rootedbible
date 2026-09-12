@@ -47,7 +47,7 @@ api.interceptors.response.use(
       isRefreshing = true
       try {
         const { data } = await axios.post(AUTH_REFRESH_URL, { refresh_token: refreshToken })
-        useAuthStore.getState().setSession(data.access_token, data.refresh_token, data.user)
+        useAuthStore.getState().setSession(data.access_token, data.refresh_token, data.user, data.admin_orgs)
         pendingQueue.forEach((cb) => cb())
         pendingQueue = []
         return api(originalRequest)

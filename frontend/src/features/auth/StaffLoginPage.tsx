@@ -4,6 +4,7 @@ import { ArrowRight, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { api, getApiErrorMessage } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
+import { postSignInPath, type RootedSignInResult } from '@/lib/completeSignIn'
 
 /**
  * Legacy User-ID sign-in. Not linked from any visible nav - reachable only at
@@ -22,12 +23,15 @@ export default function StaffLoginPage() {
     if (!userId.trim()) return
     setLoading(true)
     try {
-      const { data } = await api.post('/auth/login', { user_id: userId.trim() })
-      setSession(data.access_token, data.refresh_token, data.user)
+      const { data } = await api.post<RootedSignInResult>('/auth/login', { user_id: userId.trim() })
+      setSession(data.access_token, data.refresh_token, data.user, data.admin_orgs)
       toast.success(`Welcome back, ${data.user.name.split(' ')[0]}!`)
-      const isStaff = ['admin', 'super_admin'].includes(data.user.role)
+      // A staff/org-admin account never returns to wherever it came from -
+      // it always lands on its own dashboard (Super Admin, or a specific
+      // Church/Fellowship's own admin page), same as every other sign-in path.
+      const isStaffOrOrgAdmin = ['admin', 'super_admin'].includes(data.user.role) || !!data.admin_orgs?.length
       const from = (location.state as any)?.from?.pathname
-      navigate(from ?? (isStaff ? '/admin' : '/'), { replace: true })
+      navigate(isStaffOrOrgAdmin ? postSignInPath(data) : from ?? '/', { replace: true })
     } catch (err) {
       toast.error(getApiErrorMessage(err))
     } finally {
