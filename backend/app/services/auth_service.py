@@ -6,6 +6,7 @@ from app.core.config import settings
 from app.core.exceptions import UnauthorizedError, ForbiddenError
 from app.core.security import create_access_token, create_refresh_token, decode_token, TokenError
 from app.core.supabase_auth import verify_supabase_access_token, SupabaseTokenError
+from app.core.supabase_admin import sync_role_to_supabase
 from app.models.user import UserRole, UserStatus
 from app.repositories.user_repository import UserRepository
 from app.schemas.user import TokenResponse, UserOut
@@ -118,11 +119,13 @@ class AuthService:
     def _issue_tokens(self, user) -> TokenResponse:
         access_token = create_access_token(subject=str(user.id), role=user.role.value, extra_claims={"user_code": user.user_id})
         refresh_token = create_refresh_token(subject=str(user.id))
+        admin_orgs = self._list_admin_orgs(user.id)
+        sync_role_to_supabase(user.supabase_user_id, user.role.value, [org.model_dump(mode="json") for org in admin_orgs])
         return TokenResponse(
             access_token=access_token,
             refresh_token=refresh_token,
             user=UserOut.model_validate(user),
-            admin_orgs=self._list_admin_orgs(user.id),
+            admin_orgs=admin_orgs,
         )
 
     def _list_admin_orgs(self, user_id) -> list:
@@ -167,9 +170,4 @@ class AuthService:
             raise UnauthorizedError("User not found or inactive")
         self.db.commit()
 
-        access_token = create_access_token(subject=str(user.id), role=user.role.value, extra_claims={"user_code": user.user_id})
-        new_refresh_token = create_refresh_token(subject=str(user.id))
-        return TokenResponse(
-            access_token=access_token, refresh_token=new_refresh_token, user=UserOut.model_validate(user),
-            admin_orgs=self._list_admin_orgs(user.id),
-        )
+        return self._issue_tokens(user)
