@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import String, Enum, Date, DateTime, func
+from sqlalchemy import String, Enum, Date, DateTime, ForeignKey, CheckConstraint, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -24,6 +24,12 @@ class UserStatus(str, enum.Enum):
 
 class User(Base):
     __tablename__ = "users"
+    __table_args__ = (
+        CheckConstraint(
+            "not (active_calendar_church_id is not null and active_calendar_fellowship_id is not null)",
+            name="chk_user_one_active_calendar",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[str] = mapped_column(String(20), unique=True, nullable=False, index=True)
@@ -47,6 +53,13 @@ class User(Base):
     state_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     postcode: Mapped[str | None] = mapped_column(String(20), nullable=True)
     country: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+    # Which org's own reading calendar/quiz bank this member follows -
+    # both null = the shared platform default. At most one may be set;
+    # the member explicitly chooses this in Settings when they belong to
+    # more than one org that runs its own calendar.
+    active_calendar_church_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("church.id", ondelete="SET NULL"), nullable=True)
+    active_calendar_fellowship_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("fellowship.id", ondelete="SET NULL"), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

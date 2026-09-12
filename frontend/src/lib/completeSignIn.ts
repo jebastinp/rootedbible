@@ -3,12 +3,19 @@ import { api } from './api'
 import { useAuthStore } from '@/store/authStore'
 import type { User } from '@/types'
 
+export interface AdminOrg {
+  kind: 'church' | 'fellowship'
+  org_id: string
+  name: string
+}
+
 export interface RootedSignInResult {
   access_token: string
   refresh_token: string
   user: User
   is_new_user: boolean
   needs_onboarding: boolean
+  admin_orgs: AdminOrg[]
 }
 
 /** Shared by every sign-in path (Google, email+password, email confirmation
@@ -23,6 +30,15 @@ export async function completeRootedSignIn(supabaseAccessToken: string): Promise
 
 export function postSignInPath(result: RootedSignInResult): string {
   if (result.needs_onboarding) return '/onboarding'
+  // A Church/Fellowship's own owner/admin (assigned via admin_rooted_id or
+  // admin_email at creation, or invited later) lands on THAT org's own
+  // admin page, not the regular member Home - this is separate from the
+  // platform-wide role check below, since running one church doesn't grant
+  // any platform-wide access.
+  if (result.admin_orgs?.length) {
+    const org = result.admin_orgs[0]
+    return `/community/${org.kind}/${org.org_id}/admin`
+  }
   return ['admin', 'super_admin'].includes(result.user.role) ? '/admin' : '/'
 }
 

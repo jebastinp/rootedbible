@@ -18,6 +18,10 @@ class ChurchCreate(BaseModel):
     # register a church on a pastor/leader's behalf without the Super
     # Admin permanently sitting in that church's own membership list.
     admin_rooted_id: Optional[str] = Field(default=None, max_length=20)
+    # Alternative to admin_rooted_id when that person hasn't signed up yet -
+    # the moment someone signs up with this email, they're made this
+    # church's owner automatically. Ignored if admin_rooted_id is also given.
+    admin_email: Optional[str] = Field(default=None, max_length=255)
 
 
 class ChurchOut(BaseModel):
@@ -56,11 +60,14 @@ class FellowshipCreate(BaseModel):
     # Same as Church.admin_rooted_id - assigns a specific person as this
     # fellowship's owner/admin instead of the creator.
     admin_rooted_id: Optional[str] = Field(default=None, max_length=20)
+    # Same as Church.admin_email.
+    admin_email: Optional[str] = Field(default=None, max_length=255)
 
 
 class FellowshipOut(BaseModel):
     id: uuid.UUID
     name: str
+    fellowship_code: str
     description: Optional[str] = None
     church_id: Optional[uuid.UUID] = None
     church_name: Optional[str] = None
@@ -86,3 +93,22 @@ class RootedGroupOut(BaseModel):
 
 class MyGroupMembershipUpdate(BaseModel):
     group_ids: list[uuid.UUID] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------
+# Active calendar - which org's own reading plan/quiz bank a member follows
+# ---------------------------------------------------------------------
+class CalendarOptionOut(BaseModel):
+    kind: str  # "church" | "fellowship"
+    org_id: uuid.UUID
+    name: str
+
+
+class ActiveCalendarUpdate(BaseModel):
+    # null/null = the shared platform default
+    kind: Optional[str] = Field(default=None, pattern="^(church|fellowship)$")
+    org_id: Optional[uuid.UUID] = None
+
+
+class InviteAdminByEmail(BaseModel):
+    email: str = Field(min_length=3, max_length=255, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")

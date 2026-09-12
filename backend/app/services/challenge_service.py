@@ -674,18 +674,65 @@ class ChallengeService:
         if payload.message not in _ENCOURAGEMENT_MESSAGES:
             raise ValidationError("Please choose one of the suggested encouragement messages.")
 
+        GroupModel = self._group_model(kind)
+        MemberModel = self._member_model(kind)
+        fk = self._group_fk(kind)
+        group = self.db.query(GroupModel).filter(GroupModel.id == group_id).first()
+        if not group:
+            raise NotFoundError("Group not found.")
+
         to_user_id = None
         if payload.to_user_id:
             target = self._get_user_by_rooted_id(payload.to_user_id)
             self._require_group_membership(kind, group_id, target.id)
             to_user_id = target.id
 
-        fk = self._group_fk(kind)
         encouragement = Encouragement(from_user_id=actor_id, to_user_id=to_user_id, message=payload.message, **{fk: group_id})
         self.db.add(encouragement)
+
+        sender = self.db.query(User).filter(User.id == actor_id).first()
+        sender_name = sender.name if sender else "Someone"
+        link = f"/community/{'family' if kind == 'family' else 'buddy-group'}/{group_id}"
+        if to_user_id:
+            notify(self.db, to_user_id, f"{kind}_encouragement", f"{sender_name} sent you encouragement in {group.name}", message=payload.message, link=link)
+        else:
+            recipient_ids = [
+                m.user_id for m in self.db.query(MemberModel).filter(
+                    getattr(MemberModel, fk) == group_id,
+                    MemberModel.status == GroupMemberStatus.active.value,
+                    MemberModel.user_id != actor_id,
+                ).all()
+            ]
+            for recipient_id in recipient_ids:
+                notify(self.db, recipient_id, f"{kind}_encouragement", f"{sender_name} encouraged {group.name}", message=payload.message, link=link)
+
         self.db.commit()
         self.db.refresh(encouragement)
         return encouragement
+
+    def list_group_encouragements(self, kind: str, user_id: uuid.UUID, group_id: uuid.UUID, limit: int = 30) -> list[dict]:
+        self._require_group_membership(kind, group_id, user_id)
+        fk = self._group_fk(kind)
+        rows = (
+            self.db.query(Encouragement, User)
+            .join(User, User.id == Encouragement.from_user_id)
+            .filter(getattr(Encouragement, fk) == group_id)
+            .order_by(Encouragement.created_at.desc())
+            .limit(limit)
+            .all()
+        )
+        to_user_ids = {e.to_user_id for e, _ in rows if e.to_user_id}
+        to_users = {u.id: u for u in self.db.query(User).filter(User.id.in_(to_user_ids)).all()} if to_user_ids else {}
+        return [
+            {
+                "id": e.id,
+                "from_name": u.name,
+                "to_name": to_users[e.to_user_id].name if e.to_user_id and e.to_user_id in to_users else None,
+                "message": e.message,
+                "created_at": e.created_at,
+            }
+            for e, u in rows
+        ]
 
     # -----------------------------------------------------------------
     # Leaderboard

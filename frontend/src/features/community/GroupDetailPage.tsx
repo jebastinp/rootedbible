@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Loader2, UserPlus, Flame, MoreVertical, LogOut, Trash2, X, Heart } from 'lucide-react'
+import { Loader2, UserPlus, Flame, MoreVertical, LogOut, Trash2, X, Heart, MessageCircleHeart } from 'lucide-react'
 import { toast } from 'sonner'
 import SubPageHeader from '@/components/shared/SubPageHeader'
-import { useGroupDetail, useLeaveGroup, useDeleteGroup, useRemoveGroupMember, useEncourageGroup } from './useCommunity'
+import { useGroupDetail, useLeaveGroup, useDeleteGroup, useRemoveGroupMember, useEncourageGroup, useGroupEncouragements } from './useCommunity'
+import { formatDistanceToNowStrict } from 'date-fns'
 import InviteToGroupSheet from './InviteToGroupSheet'
 import { cn, initials } from '@/lib/utils'
 
@@ -14,8 +15,10 @@ export default function GroupDetailPage({ kind }: { kind: 'family' | 'buddy' }) 
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { data: group, isLoading } = useGroupDetail(kind, id)
+  const { data: encouragements } = useGroupEncouragements(kind, id)
   const [inviteOpen, setInviteOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [encourageOpen, setEncourageOpen] = useState(false)
   const [encourageTarget, setEncourageTarget] = useState<string | null>(null)
   const leave = useLeaveGroup(kind)
   const del = useDeleteGroup(kind)
@@ -70,11 +73,17 @@ export default function GroupDetailPage({ kind }: { kind: 'family' | 'buddy' }) 
       {
         onSuccess: () => {
           toast.success('Encouragement sent')
+          setEncourageOpen(false)
           setEncourageTarget(null)
         },
         onError: () => toast.error('Could not send this encouragement.'),
       }
     )
+  }
+
+  function closeEncourageSheet() {
+    setEncourageOpen(false)
+    setEncourageTarget(null)
   }
 
   return (
@@ -113,9 +122,35 @@ export default function GroupDetailPage({ kind }: { kind: 'family' | 'buddy' }) 
         </div>
       </div>
 
-      <button onClick={() => setInviteOpen(true)} className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-primary text-white text-sm font-semibold">
-        <UserPlus size={16} /> Invite by Rooted ID
-      </button>
+      <div className="flex gap-2">
+        <button onClick={() => setInviteOpen(true)} className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-primary text-white text-sm font-semibold">
+          <UserPlus size={16} /> Invite by Rooted ID
+        </button>
+        <button
+          onClick={() => { setEncourageTarget(null); setEncourageOpen(true) }}
+          className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl border border-ink/10 text-ink text-sm font-semibold"
+        >
+          <MessageCircleHeart size={16} className="text-secondary" /> Encourage
+        </button>
+      </div>
+
+      {!!encouragements?.length && (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-ink-soft uppercase tracking-wide">Recent Encouragements</p>
+          <div className="bg-surface rounded-3xl shadow-soft border border-ink/5 divide-y divide-ink/5 overflow-hidden">
+            {encouragements.map((e) => (
+              <div key={e.id} className="px-4 py-3">
+                <p className="text-sm">
+                  <span className="font-medium">{e.from_name}</span>
+                  {e.to_name ? <span className="text-ink-soft"> → {e.to_name}</span> : <span className="text-ink-soft"> → everyone</span>}
+                </p>
+                <p className="text-sm text-ink-soft italic mt-0.5">"{e.message}"</p>
+                <p className="text-[11px] text-ink-soft/70 mt-0.5">{formatDistanceToNowStrict(new Date(e.created_at), { addSuffix: true })}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="space-y-2">
         <p className="text-xs font-semibold text-ink-soft uppercase tracking-wide">Members</p>
@@ -135,7 +170,7 @@ export default function GroupDetailPage({ kind }: { kind: 'family' | 'buddy' }) 
                 <Flame size={13} />
               </div>
               <button
-                onClick={() => setEncourageTarget(m.user_id)}
+                onClick={() => { setEncourageTarget(m.user_id); setEncourageOpen(true) }}
                 aria-label={`Encourage ${m.name}`}
                 className="w-7 h-7 rounded-full flex items-center justify-center text-secondary shrink-0"
               >
@@ -153,8 +188,8 @@ export default function GroupDetailPage({ kind }: { kind: 'family' | 'buddy' }) 
 
       {inviteOpen && <InviteToGroupSheet kind={kind} groupId={group.id} onClose={() => setInviteOpen(false)} />}
 
-      {encourageTarget !== null && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={() => setEncourageTarget(null)}>
+      {encourageOpen && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={closeEncourageSheet}>
           <motion.div initial={{ y: 300 }} animate={{ y: 0 }} onClick={(e) => e.stopPropagation()} className="w-full max-w-lg glass text-ink rounded-t-3xl p-5 safe-bottom space-y-3">
             <p className="font-semibold">Send Encouragement</p>
             <div className="space-y-2">

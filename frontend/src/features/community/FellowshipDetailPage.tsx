@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Loader2, MoreVertical, LogOut, X as XIcon, Check } from 'lucide-react'
+import { Loader2, MoreVertical, LogOut, X as XIcon, Check, Copy, Settings } from 'lucide-react'
 import { toast } from 'sonner'
 import SubPageHeader from '@/components/shared/SubPageHeader'
 import { useFellowshipDetail, useFellowshipRequests, useRespondToFellowshipRequest, useLeaveFellowship, useRemoveFellowshipMember } from './useChurch'
@@ -65,6 +65,31 @@ export default function FellowshipDetailPage() {
         {fellowship.church_name && <>{fellowship.church_name} · </>}
         {fellowship.member_count} member{fellowship.member_count === 1 ? '' : 's'} · {fellowship.privacy}
       </p>
+
+      {isAdmin && (
+        <div className="bg-surface rounded-3xl p-5 shadow-soft border border-ink/5 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold text-ink-soft uppercase tracking-wide">Fellowship Code</p>
+            <p className="text-lg font-bold tracking-widest mt-0.5">{fellowship.fellowship_code}</p>
+          </div>
+          <button
+            onClick={() => { navigator.clipboard.writeText(fellowship.fellowship_code); toast.success('Fellowship code copied') }}
+            className="w-9 h-9 rounded-full flex items-center justify-center bg-ink/5 text-ink-soft"
+            aria-label="Copy fellowship code"
+          >
+            <Copy size={15} />
+          </button>
+        </div>
+      )}
+
+      {isAdmin && (
+        <button
+          onClick={() => navigate(`/community/fellowship/${fellowship.id}/admin`)}
+          className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border border-ink/10 text-ink text-sm font-semibold"
+        >
+          <Settings size={16} /> Manage Reading Plan & Quiz
+        </button>
+      )}
 
       {isAdmin && requests && requests.length > 0 && (
         <div className="space-y-2">

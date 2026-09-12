@@ -79,6 +79,72 @@ class CommunityService:
             raise ForbiddenError("Only the owner or an admin can do this.")
         return role
 
+    def invite_admin_by_email(self, actor_id: uuid.UUID, kind: str, entity_id: uuid.UUID, email: str) -> None:
+        """Adds another admin (not owner - ownership is never reassigned by
+        this path) to an EXISTING org, by email. Only works for someone who
+        has already signed up; pre-provisioning someone who hasn't yet is
+        done at creation time via admin_email, which is unambiguous about
+        making that specific person the church/fellowship's OWNER."""
+        self._require_admin(kind, entity_id, actor_id)
+        from app.repositories.user_repository import UserRepository
+
+        normalized = email.strip().lower()
+        existing = UserRepository(self.db).get_by_email(normalized)
+        if not existing:
+            raise NotFoundError("No Rooted account exists yet for that email. Ask them to sign up first, then invite them.")
+        MemberModel = self._member_model(kind)
+        fk = self._fk(kind)
+        member = self.db.query(MemberModel).filter(getattr(MemberModel, fk) == entity_id, MemberModel.user_id == existing.id).first()
+        if member:
+            member.status = "active"
+            member.role = "admin"
+        else:
+            self.db.add(MemberModel(**{fk: entity_id, "user_id": existing.id, "role": "admin", "status": "active"}))
+        self.db.commit()
+
+    # -----------------------------------------------------------------
+    # Active calendar - which org's own reading plan/quiz bank a member
+    # follows (both null = the shared platform default).
+    # -----------------------------------------------------------------
+    def list_calendar_options(self, user_id: uuid.UUID) -> list[dict]:
+        from app.models.reading_plan import ReadingPlan, compute_scope_key
+
+        options: list[dict] = []
+        for row in self.db.query(ChurchMember).filter(ChurchMember.user_id == user_id, ChurchMember.status == "active").all():
+            church = self.db.query(Church).filter(Church.id == row.church_id).first()
+            if not church:
+                continue
+            has_calendar = self.db.query(ReadingPlan.id).filter(ReadingPlan.scope_key == compute_scope_key(church_id=church.id)).first() is not None
+            if has_calendar:
+                options.append({"kind": "church", "org_id": church.id, "name": church.name})
+        for row in self.db.query(FellowshipMember).filter(FellowshipMember.user_id == user_id, FellowshipMember.status == "active").all():
+            fellowship = self.db.query(Fellowship).filter(Fellowship.id == row.fellowship_id).first()
+            if not fellowship:
+                continue
+            has_calendar = self.db.query(ReadingPlan.id).filter(ReadingPlan.scope_key == compute_scope_key(fellowship_id=fellowship.id)).first() is not None
+            if has_calendar:
+                options.append({"kind": "fellowship", "org_id": fellowship.id, "name": fellowship.name})
+        return options
+
+    def set_active_calendar(self, user_id: uuid.UUID, kind: str | None, org_id: uuid.UUID | None) -> None:
+        user = self.db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise NotFoundError("User not found.")
+        if kind is None:
+            user.active_calendar_church_id = None
+            user.active_calendar_fellowship_id = None
+        elif kind == "church":
+            self._require_membership("church", org_id, user_id)
+            user.active_calendar_church_id = org_id
+            user.active_calendar_fellowship_id = None
+        elif kind == "fellowship":
+            self._require_membership("fellowship", org_id, user_id)
+            user.active_calendar_fellowship_id = org_id
+            user.active_calendar_church_id = None
+        else:
+            raise ValidationError("kind must be 'church' or 'fellowship'.")
+        self.db.commit()
+
     def _get_user_by_rooted_id(self, rooted_id: str) -> User:
         user = self.db.query(User).filter(User.user_id == rooted_id.strip().upper(), User.deleted_at.is_(None)).first()
         if not user:
@@ -101,15 +167,33 @@ class CommunityService:
                 return code
         raise RuntimeError("Could not allocate a unique church code")
 
+    def _resolve_admin_assignment(self, actor_id: uuid.UUID, admin_rooted_id: str | None, admin_email: str | None) -> tuple[uuid.UUID, str | None]:
+        """admin_rooted_id takes priority (that person already has an
+        account). Otherwise, admin_email either resolves to an existing
+        account immediately, or - if nobody has signed up with it yet - is
+        stashed as a pending invite that resolves itself the moment someone
+        does (see UserRepository.create). Falls back to the creator."""
+        if admin_rooted_id:
+            return self._get_user_by_rooted_id(admin_rooted_id).id, None
+        if admin_email:
+            from app.repositories.user_repository import UserRepository
+            normalized = admin_email.strip().lower()
+            existing = UserRepository(self.db).get_by_email(normalized)
+            if existing:
+                return existing.id, None
+            return actor_id, normalized
+        return actor_id, None
+
     def admin_create_church(self, actor_id: uuid.UUID, payload: ChurchCreate) -> Church:
-        # If an admin_rooted_id is given, THAT person becomes the church's
-        # owner (its scoped Church Admin) - not whoever is submitting the
-        # form. Lets a Super Admin register a church on someone else's
-        # behalf without permanently joining that church themselves.
-        owner_id = self._get_user_by_rooted_id(payload.admin_rooted_id).id if payload.admin_rooted_id else actor_id
+        # If an admin_rooted_id/admin_email is given, THAT person becomes
+        # the church's owner (its scoped Church Admin) - not whoever is
+        # submitting the form. Lets a Super Admin register a church on
+        # someone else's behalf without permanently joining that church
+        # themselves.
+        owner_id, pending_admin_email = self._resolve_admin_assignment(actor_id, payload.admin_rooted_id, payload.admin_email)
         church = Church(
             name=payload.name, description=payload.description, address=payload.address,
-            owner_id=owner_id, church_code=self._generate_church_code(), privacy=payload.privacy,
+            owner_id=owner_id, pending_admin_email=pending_admin_email, church_code=self._generate_church_code(), privacy=payload.privacy,
         )
         self.db.add(church)
         self.db.flush()
@@ -244,11 +328,21 @@ class CommunityService:
     # -----------------------------------------------------------------
     # Fellowship
     # -----------------------------------------------------------------
+    def _generate_fellowship_code(self) -> str:
+        for _ in range(20):
+            code = "ROOTED-" + "".join(secrets.choice(_CODE_ALPHABET) for _ in range(6))
+            if not self.db.query(Fellowship).filter(Fellowship.fellowship_code == code).first():
+                return code
+        raise RuntimeError("Could not allocate a unique fellowship code")
+
     def admin_create_fellowship(self, actor_id: uuid.UUID, payload: "FellowshipCreate") -> Fellowship:
         if payload.church_id:
             self._require_membership("church", payload.church_id, actor_id)
-        owner_id = self._get_user_by_rooted_id(payload.admin_rooted_id).id if payload.admin_rooted_id else actor_id
-        fellowship = Fellowship(name=payload.name, description=payload.description, church_id=payload.church_id, owner_id=owner_id, privacy=payload.privacy)
+        owner_id, pending_admin_email = self._resolve_admin_assignment(actor_id, payload.admin_rooted_id, payload.admin_email)
+        fellowship = Fellowship(
+            name=payload.name, fellowship_code=self._generate_fellowship_code(), description=payload.description,
+            church_id=payload.church_id, owner_id=owner_id, pending_admin_email=pending_admin_email, privacy=payload.privacy,
+        )
         self.db.add(fellowship)
         self.db.flush()
         self.db.add(FellowshipMember(fellowship_id=fellowship.id, user_id=owner_id, role="owner", status="active"))
@@ -269,7 +363,7 @@ class CommunityService:
             church = self.db.query(Church).filter(Church.id == fellowship.church_id).first()
             church_name = church.name if church else None
         return FellowshipOut(
-            id=fellowship.id, name=fellowship.name, description=fellowship.description, church_id=fellowship.church_id,
+            id=fellowship.id, name=fellowship.name, fellowship_code=fellowship.fellowship_code, description=fellowship.description, church_id=fellowship.church_id,
             church_name=church_name, privacy=fellowship.privacy, status=fellowship.status,
             member_count=self._member_count("fellowship", fellowship.id), my_role=self._my_role("fellowship", fellowship.id, user_id) if user_id else None,
             created_at=fellowship.created_at,
@@ -306,22 +400,27 @@ class CommunityService:
         ).order_by(JoinRequest.created_at).all()
         return [{"request_id": r.id, "user_id": u.user_id, "name": u.name, "requested_at": r.created_at} for r, u in rows]
 
-    def request_join_fellowship(self, user_id: uuid.UUID, fellowship_id: uuid.UUID) -> JoinRequest:
-        fellowship = self._get_fellowship(fellowship_id)
+    def find_fellowship_by_code(self, fellowship_code: str) -> Fellowship | None:
+        return self.db.query(Fellowship).filter(Fellowship.fellowship_code == fellowship_code.strip().upper()).first()
+
+    def request_join_fellowship(self, user_id: uuid.UUID, fellowship_id: uuid.UUID | None = None, fellowship_code: str | None = None) -> JoinRequest:
+        fellowship = self._get_fellowship(fellowship_id) if fellowship_id else self.find_fellowship_by_code(fellowship_code or "")
+        if not fellowship:
+            raise NotFoundError("Fellowship not found.")
         if fellowship.status != "active":
             raise ValidationError("This fellowship is not accepting new members.")
 
-        existing = self.db.query(FellowshipMember).filter(FellowshipMember.fellowship_id == fellowship_id, FellowshipMember.user_id == user_id).first()
+        existing = self.db.query(FellowshipMember).filter(FellowshipMember.fellowship_id == fellowship.id, FellowshipMember.user_id == user_id).first()
         if existing and existing.status == "active":
             raise ConflictError("You already belong to this fellowship.")
 
-        pending = self.db.query(JoinRequest).filter(JoinRequest.type == "fellowship", JoinRequest.fellowship_id == fellowship_id, JoinRequest.requester_id == user_id, JoinRequest.status == RequestStatus.pending.value).first()
+        pending = self.db.query(JoinRequest).filter(JoinRequest.type == "fellowship", JoinRequest.fellowship_id == fellowship.id, JoinRequest.requester_id == user_id, JoinRequest.status == RequestStatus.pending.value).first()
         if pending:
             raise ConflictError("Your request to join is already pending.")
 
-        request = JoinRequest(type="fellowship", requester_id=user_id, fellowship_id=fellowship_id, status=RequestStatus.pending.value)
+        request = JoinRequest(type="fellowship", requester_id=user_id, fellowship_id=fellowship.id, status=RequestStatus.pending.value)
         self.db.add(request)
-        audit_service.record(self.db, user_id, "fellowship_join_requested", "fellowship", fellowship_id, {"user_id": str(user_id)})
+        audit_service.record(self.db, user_id, "fellowship_join_requested", "fellowship", fellowship.id, {"user_id": str(user_id)})
         requester = self.db.query(User).filter(User.id == user_id).first()
         notify(self.db, fellowship.owner_id, "fellowship_join_requested", f"{requester.name if requester else 'Someone'} wants to join {fellowship.name}", link=f"/community/fellowship/{fellowship.id}")
         self.db.commit()

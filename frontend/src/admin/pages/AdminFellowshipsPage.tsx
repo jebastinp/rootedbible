@@ -40,6 +40,7 @@ export default function AdminFellowshipsPage() {
               <thead>
                 <tr className="border-b border-ink/5 text-left text-xs font-semibold text-ink-soft uppercase tracking-wide">
                   <th className="px-5 py-3">Fellowship</th>
+                  <th className="px-5 py-3">Code</th>
                   <th className="px-5 py-3">Church</th>
                   <th className="px-5 py-3">Members</th>
                   <th className="px-5 py-3">Privacy</th>
@@ -51,6 +52,7 @@ export default function AdminFellowshipsPage() {
                 {fellowships.map((f) => (
                   <tr key={f.id} className="border-b border-ink/5 last:border-0">
                     <td className="px-5 py-3 font-medium">{f.name}</td>
+                    <td className="px-5 py-3 text-ink-soft">{f.fellowship_code}</td>
                     <td className="px-5 py-3 text-ink-soft">{f.church_name ?? '—'}</td>
                     <td className="px-5 py-3 text-ink-soft">{f.member_count}</td>
                     <td className="px-5 py-3 text-ink-soft capitalize">{f.privacy}</td>
@@ -77,6 +79,7 @@ function CreateFellowshipModal({ onClose }: { onClose: () => void }) {
   const [churchId, setChurchId] = useState('')
   const [privacy, setPrivacy] = useState('public')
   const [adminRootedId, setAdminRootedId] = useState('')
+  const [adminEmail, setAdminEmail] = useState('')
   const create = useCreateFellowship()
 
   const { data: churches } = useQuery({
@@ -87,7 +90,7 @@ function CreateFellowshipModal({ onClose }: { onClose: () => void }) {
   function submit() {
     if (name.trim().length < 2) return toast.error('Give the fellowship a name (at least 2 characters).')
     create.mutate(
-      { name: name.trim(), description: description.trim() || undefined, church_id: churchId || undefined, privacy, admin_rooted_id: adminRootedId.trim() || undefined },
+      { name: name.trim(), description: description.trim() || undefined, church_id: churchId || undefined, privacy, admin_rooted_id: adminRootedId.trim() || undefined, admin_email: adminRootedId.trim() ? undefined : adminEmail.trim() || undefined },
       {
         onSuccess: (fellowship) => {
           queryClient.invalidateQueries({ queryKey: ['admin-fellowships'] })
@@ -138,6 +141,17 @@ function CreateFellowshipModal({ onClose }: { onClose: () => void }) {
             maxLength={20}
           />
           <p className="text-xs text-ink-soft mt-1">Leave blank to become the admin yourself. This person manages only this fellowship - never other fellowships.</p>
+        </div>
+        <div>
+          <label className="text-xs font-semibold text-ink-soft uppercase tracking-wide mb-1 block">Or by email (if they haven't signed up yet)</label>
+          <input
+            value={adminEmail}
+            onChange={(e) => setAdminEmail(e.target.value)}
+            placeholder="leader@example.com"
+            className="admin-input"
+            disabled={!!adminRootedId.trim()}
+          />
+          <p className="text-xs text-ink-soft mt-1">The moment someone signs up with this email, they become this fellowship's admin automatically. Ignored if a Rooted ID is given above.</p>
         </div>
         <button
           onClick={submit}

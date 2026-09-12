@@ -77,12 +77,13 @@ function CreateChurchModal({ onClose }: { onClose: () => void }) {
   const [address, setAddress] = useState('')
   const [privacy, setPrivacy] = useState('public')
   const [adminRootedId, setAdminRootedId] = useState('')
+  const [adminEmail, setAdminEmail] = useState('')
   const create = useCreateChurch()
 
   function submit() {
     if (name.trim().length < 2) return toast.error('Give the church a name (at least 2 characters).')
     create.mutate(
-      { name: name.trim(), description: description.trim() || undefined, address: address.trim() || undefined, privacy, admin_rooted_id: adminRootedId.trim() || undefined },
+      { name: name.trim(), description: description.trim() || undefined, address: address.trim() || undefined, privacy, admin_rooted_id: adminRootedId.trim() || undefined, admin_email: adminRootedId.trim() ? undefined : adminEmail.trim() || undefined },
       {
         onSuccess: (church) => {
           queryClient.invalidateQueries({ queryKey: ['admin-churches'] })
@@ -128,6 +129,17 @@ function CreateChurchModal({ onClose }: { onClose: () => void }) {
             maxLength={20}
           />
           <p className="text-xs text-ink-soft mt-1">Leave blank to become the admin yourself. This person manages only this church - never other churches.</p>
+        </div>
+        <div>
+          <label className="text-xs font-semibold text-ink-soft uppercase tracking-wide mb-1 block">Or by email (if they haven't signed up yet)</label>
+          <input
+            value={adminEmail}
+            onChange={(e) => setAdminEmail(e.target.value)}
+            placeholder="pastor@example.com"
+            className="admin-input"
+            disabled={!!adminRootedId.trim()}
+          />
+          <p className="text-xs text-ink-soft mt-1">The moment someone signs up with this email, they become this church's admin automatically. Ignored if a Rooted ID is given above.</p>
         </div>
         <button
           onClick={submit}

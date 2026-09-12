@@ -9,10 +9,13 @@ class QuizRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def get_questions_for_chapter(self, chapter_id: uuid.UUID, age_group: str = "adult") -> list[QuizQuestion]:
+    def get_questions_for_chapter(self, chapter_id: uuid.UUID, age_group: str = "adult", church_id: uuid.UUID | None = None, fellowship_id: uuid.UUID | None = None) -> list[QuizQuestion]:
         return (
             self.db.query(QuizQuestion)
-            .filter(QuizQuestion.chapter_id == chapter_id, QuizQuestion.age_group == age_group)
+            .filter(
+                QuizQuestion.chapter_id == chapter_id, QuizQuestion.age_group == age_group,
+                QuizQuestion.church_id == church_id, QuizQuestion.fellowship_id == fellowship_id,
+            )
             .all()
         )
 
@@ -33,8 +36,13 @@ class QuizRepository:
         self.db.refresh(attempt)
         return attempt
 
-    def list_all_for_chapter(self, chapter_id: uuid.UUID) -> list[QuizQuestion]:
-        return self.db.query(QuizQuestion).filter(QuizQuestion.chapter_id == chapter_id).order_by(QuizQuestion.age_group).all()
+    def list_all_for_chapter(self, chapter_id: uuid.UUID, church_id: uuid.UUID | None = None, fellowship_id: uuid.UUID | None = None) -> list[QuizQuestion]:
+        return (
+            self.db.query(QuizQuestion)
+            .filter(QuizQuestion.chapter_id == chapter_id, QuizQuestion.church_id == church_id, QuizQuestion.fellowship_id == fellowship_id)
+            .order_by(QuizQuestion.age_group)
+            .all()
+        )
 
     def has_passed(self, user_id: uuid.UUID, reading_plan_id: uuid.UUID) -> bool:
         return (

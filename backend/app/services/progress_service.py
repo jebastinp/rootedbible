@@ -4,6 +4,8 @@ from datetime import datetime, date, timedelta
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import NotFoundError, ConflictError
+from app.models.reading_plan import compute_scope_key
+from app.models.user import User
 from app.repositories.progress_repository import ProgressRepository
 from app.repositories.reading_plan_repository import ReadingPlanRepository
 from app.schemas.reading import (
@@ -28,22 +30,42 @@ class ProgressService:
         self.progress_repo = ProgressRepository(db)
         self.plan_repo = ReadingPlanRepository(db)
 
+    def _scope_key_for_user(self, user_id: uuid.UUID) -> str:
+        """Which calendar (platform default, or a specific Church's /
+        Fellowship's own) this member currently follows - their own choice
+        in Settings, defaulting to the shared platform calendar."""
+        user = self.db.query(User).filter(User.id == user_id).first()
+        if not user:
+            return "platform"
+        return compute_scope_key(user.active_calendar_church_id, user.active_calendar_fellowship_id)
+
     # -----------------------------------------------------------------
     # HOME
     # -----------------------------------------------------------------
     def get_today_reading(self, user_id: uuid.UUID) -> TodayReadingOut:
+        """The platform calendar (day_number/reading_date/id) always anchors
+        streak/completion tracking - a member's chosen Church/Fellowship only
+        substitutes its OWN content (passages/OT/NT) for a day it has
+        customized; any day it hasn't falls straight back to the platform's
+        reading, and the identity used to mark it complete never changes."""
         plan = self.plan_repo.get_today()
         if not plan:
             raise NotFoundError("No reading plan is scheduled for today yet.")
+        content_plan = plan
+        scope = self._scope_key_for_user(user_id)
+        if scope != "platform":
+            override = self.plan_repo.get_today(scope_key=scope)
+            if override:
+                content_plan = override
         entry = self.progress_repo.get(user_id, plan.id)
-        passages = self.plan_repo.get_passages(plan.id)
+        passages = self.plan_repo.get_passages(content_plan.id)
         return TodayReadingOut(
             id=plan.id,
             day_number=plan.day_number,
             reading_date=plan.reading_date,
-            old_testament=plan.old_testament,
-            new_testament=plan.new_testament,
-            estimated_minutes=plan.estimated_minutes,
+            old_testament=content_plan.old_testament,
+            new_testament=content_plan.new_testament,
+            estimated_minutes=content_plan.estimated_minutes,
             completed=bool(entry and entry.completed),
             completed_at=entry.completed_at if entry else None,
             passages=[PassageOut.model_validate(p) for p in passages],
@@ -51,18 +73,22 @@ class ProgressService:
 
     def get_full_plan(self, user_id: uuid.UUID) -> list[PlanDayOut]:
         """Powers the member-facing 'View Full Plan' screen - every day in
-        the church-wide plan plus this user's own completion status."""
+        the platform calendar, with the member's chosen org's own content
+        substituted in for any day it has customized (see get_today_reading),
+        plus this user's own completion status."""
         all_days = self.plan_repo.list_all_ordered()
+        scope = self._scope_key_for_user(user_id)
+        overrides_by_date = {p.reading_date: p for p in self.plan_repo.list_all_ordered(scope_key=scope)} if scope != "platform" else {}
         completed_days = {e.day_number for e in self.progress_repo.all_for_user(user_id) if e.completed}
         return [
             PlanDayOut(
                 id=plan.id,
                 day_number=plan.day_number,
                 reading_date=plan.reading_date,
-                old_testament=plan.old_testament,
-                new_testament=plan.new_testament,
-                estimated_minutes=plan.estimated_minutes,
-                passages=[PassageOut.model_validate(p) for p in self.plan_repo.get_passages(plan.id)],
+                old_testament=overrides_by_date.get(plan.reading_date, plan).old_testament,
+                new_testament=overrides_by_date.get(plan.reading_date, plan).new_testament,
+                estimated_minutes=overrides_by_date.get(plan.reading_date, plan).estimated_minutes,
+                passages=[PassageOut.model_validate(p) for p in self.plan_repo.get_passages(overrides_by_date.get(plan.reading_date, plan).id)],
                 completed=plan.day_number in completed_days,
             )
             for plan in all_days

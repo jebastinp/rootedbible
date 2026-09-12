@@ -4,9 +4,10 @@ import { UploadCloud, FileText, CheckCircle2, XCircle, Loader2, ArrowRight, Rota
 import { toast } from 'sonner'
 import { api, getApiErrorMessage } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { useBibleVersions } from '@/lib/bible'
 import AdminPageHeader from '../components/AdminPageHeader'
 
-type FileType = 'users' | 'reading_plan' | 'progress'
+type FileType = 'users' | 'reading_plan' | 'progress' | 'quiz'
 
 interface PreviewRow {
   row_number: number
@@ -38,31 +39,52 @@ const FILE_TYPE_INFO: Record<FileType, { label: string; columns: string[] }> = {
   users: { label: 'users.csv', columns: ['user_id', 'name', 'role', 'phone', 'joined_date'] },
   reading_plan: { label: 'reading_plan.csv', columns: ['day', 'date', 'old_testament', 'new_testament', 'estimated_minutes'] },
   progress: { label: 'progress.csv', columns: ['user_id', 'day', 'completed', 'completed_date'] },
+  quiz: { label: 'quiz.csv', columns: ['No', 'Book', 'Chapter', 'Q.No', 'Question', 'A', 'B', 'C', 'D', 'Reference', 'Correct Option'] },
 }
 
-export default function AdminCsvImportPage() {
-  const [fileType, setFileType] = useState<FileType>('users')
+interface AdminCsvImportPageProps {
+  basePath?: string
+  allowedTypes?: FileType[]
+  showHistory?: boolean
+  title?: string
+  description?: string
+}
+
+export default function AdminCsvImportPage({
+  basePath = '/admin/csv-import',
+  allowedTypes = ['users', 'reading_plan', 'progress', 'quiz'],
+  showHistory = true,
+  title = 'CSV Import',
+  description = 'Bulk import members, reading plan, progress, and quiz data',
+}: AdminCsvImportPageProps) {
+  const [fileType, setFileType] = useState<FileType>(allowedTypes[0])
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<PreviewResponse | null>(null)
   const [result, setResult] = useState<ImportResult | null>(null)
   const [uploading, setUploading] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const versions = useBibleVersions()
+  const [versionCode, setVersionCode] = useState<string>()
+  const effectiveVersion = versionCode ?? versions.data?.[0]?.code
 
   const { data: history } = useQuery({
-    queryKey: ['import-history'],
-    queryFn: async () => (await api.get('/admin/csv-import/history')).data,
+    queryKey: ['import-history', basePath],
+    queryFn: async () => (await api.get(`${basePath}/history`)).data,
+    enabled: showHistory,
   })
 
   async function handleUpload() {
     if (!file) return
+    if (fileType === 'quiz' && !effectiveVersion) return toast.error('Choose a Bible version first.')
     setUploading(true)
     setResult(null)
     try {
       const formData = new FormData()
       formData.append('file_type', fileType)
       formData.append('file', file)
-      const { data } = await api.post<PreviewResponse>('/admin/csv-import/preview', formData, {
+      if (fileType === 'quiz' && effectiveVersion) formData.append('version_code', effectiveVersion)
+      const { data } = await api.post<PreviewResponse>(`${basePath}/preview`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
       setPreview(data)
@@ -79,7 +101,7 @@ export default function AdminCsvImportPage() {
     try {
       const formData = new FormData()
       formData.append('import_token', preview.import_token)
-      const { data } = await api.post<ImportResult>('/admin/csv-import/confirm', formData, {
+      const { data } = await api.post<ImportResult>(`${basePath}/confirm`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
       setResult(data)
@@ -100,33 +122,47 @@ export default function AdminCsvImportPage() {
 
   return (
     <div>
-      <AdminPageHeader title="CSV Import" description="Bulk import members, reading plan, and progress data" />
+      <AdminPageHeader title={title} description={description} />
 
-      <div className="p-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-5">
+      <div className={cn('p-8 grid grid-cols-1 gap-6', showHistory && 'lg:grid-cols-3')}>
+        <div className={cn(showHistory && 'lg:col-span-2', 'space-y-5')}>
           {/* Step 1: choose file type + upload */}
           <div className="bg-surface rounded-3xl p-6 shadow-soft">
             <h3 className="font-semibold mb-4">1. Choose file & type</h3>
-            <div className="flex gap-2 mb-4">
-              {(Object.keys(FILE_TYPE_INFO) as FileType[]).map((ft) => (
-                <button
-                  key={ft}
-                  onClick={() => {
-                    setFileType(ft)
-                    reset()
-                  }}
-                  className={cn(
-                    'px-4 py-2 rounded-xl text-sm font-medium transition-colors',
-                    fileType === ft ? 'bg-primary text-white' : 'bg-ink/5 text-ink-soft'
-                  )}
-                >
-                  {FILE_TYPE_INFO[ft].label}
-                </button>
-              ))}
-            </div>
+            {allowedTypes.length > 1 && (
+              <div className="flex gap-2 mb-4">
+                {allowedTypes.map((ft) => (
+                  <button
+                    key={ft}
+                    onClick={() => {
+                      setFileType(ft)
+                      reset()
+                    }}
+                    className={cn(
+                      'px-4 py-2 rounded-xl text-sm font-medium transition-colors',
+                      fileType === ft ? 'bg-primary text-white' : 'bg-ink/5 text-ink-soft'
+                    )}
+                  >
+                    {FILE_TYPE_INFO[ft].label}
+                  </button>
+                ))}
+              </div>
+            )}
             <p className="text-xs text-ink-soft mb-4">
               Required columns: <span className="font-mono">{FILE_TYPE_INFO[fileType].columns.join(', ')}</span>
             </p>
+
+            {fileType === 'quiz' && (
+              <div className="mb-4">
+                <label className="block text-xs font-semibold text-ink-soft uppercase tracking-wide mb-1.5">Bible Version</label>
+                <select value={effectiveVersion ?? ''} onChange={(e) => setVersionCode(e.target.value)} className="admin-input !w-auto">
+                  {versions.data?.map((v) => (
+                    <option key={v.code} value={v.code}>{v.version_name}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-ink-soft mt-1">Book/Chapter numbers in the CSV are resolved against this version.</p>
+              </div>
+            )}
 
             <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-ink/15 rounded-2xl py-10 cursor-pointer hover:border-secondary hover:bg-secondary/5 transition-colors">
               <UploadCloud size={28} className="text-ink-soft" />
@@ -248,6 +284,7 @@ export default function AdminCsvImportPage() {
         </div>
 
         {/* Import history sidebar */}
+        {showHistory && (
         <div className="bg-surface rounded-3xl p-6 shadow-soft h-fit">
           <h3 className="font-semibold mb-4">Import History</h3>
           <div className="space-y-3">
@@ -274,6 +311,7 @@ export default function AdminCsvImportPage() {
             {!history?.items?.length && <p className="text-sm text-ink-soft">No imports yet.</p>}
           </div>
         </div>
+        )}
       </div>
     </div>
   )

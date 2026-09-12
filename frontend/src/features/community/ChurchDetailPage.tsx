@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Loader2, Copy, MoreVertical, LogOut, X as XIcon, Check } from 'lucide-react'
+import { Loader2, Copy, MoreVertical, LogOut, X as XIcon, Check, Settings } from 'lucide-react'
 import { toast } from 'sonner'
 import SubPageHeader from '@/components/shared/SubPageHeader'
 import { useChurchDetail, useChurchRequests, useRespondToChurchRequest, useLeaveChurch, useRemoveChurchMember } from './useChurch'
@@ -78,6 +78,15 @@ export default function ChurchDetailPage() {
             <Copy size={15} />
           </button>
         </div>
+      )}
+
+      {isAdmin && (
+        <button
+          onClick={() => navigate(`/community/church/${church.id}/admin`)}
+          className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border border-ink/10 text-ink text-sm font-semibold"
+        >
+          <Settings size={16} /> Manage Reading Plan & Quiz
+        </button>
       )}
 
       {isAdmin && requests && requests.length > 0 && (

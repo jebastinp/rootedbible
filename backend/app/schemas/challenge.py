@@ -232,6 +232,14 @@ class EncouragementCreate(BaseModel):
     to_user_id: Optional[str] = None  # Rooted ID, buddy-only "encourage this person"
 
 
+class EncouragementOut(BaseModel):
+    id: uuid.UUID
+    from_name: str
+    to_name: Optional[str] = None
+    message: str
+    created_at: datetime
+
+
 # ---------------------------------------------------------------------
 # Leaderboard
 # ---------------------------------------------------------------------

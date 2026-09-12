@@ -5,9 +5,22 @@ from app.db.session import get_db
 from app.api.deps import get_current_user
 from app.models.user import User
 from app.schemas.user import UserWithStats, UserUpdate
+from app.schemas.community import CalendarOptionOut, ActiveCalendarUpdate
 from app.services.user_service import UserService
+from app.services.community_service import CommunityService
 
 router = APIRouter(prefix="/profile", tags=["Profile (Member)"])
+
+
+@router.get("/calendar-options", response_model=list[CalendarOptionOut], summary="Churches/Fellowships I belong to that run their own reading calendar")
+def calendar_options(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return CommunityService(db).list_calendar_options(current_user.id)
+
+
+@router.patch("/active-calendar", summary="Choose which org's reading calendar/quiz bank to follow (omit both fields for the platform default)")
+def set_active_calendar(payload: ActiveCalendarUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    CommunityService(db).set_active_calendar(current_user.id, payload.kind, payload.org_id)
+    return {"success": True}
 
 
 @router.get("/me", response_model=UserWithStats, summary="Get my profile with stats")
@@ -31,6 +44,8 @@ def my_profile(current_user: User = Depends(get_current_user), db: Session = Dep
             "state_name": user.state_name,
             "postcode": user.postcode,
             "country": user.country,
+            "active_calendar_church_id": user.active_calendar_church_id,
+            "active_calendar_fellowship_id": user.active_calendar_fellowship_id,
             "current_streak": stats.current_streak if stats else 0,
             "longest_streak": stats.longest_streak if stats else 0,
             "days_completed": stats.days_completed if stats else 0,

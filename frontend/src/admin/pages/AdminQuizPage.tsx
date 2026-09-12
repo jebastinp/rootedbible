@@ -18,7 +18,17 @@ interface QuizQuestionAdmin {
 
 const AGE_GROUPS = ['adult', '13-17', '9-12', '6-8', '3-5'] as const
 
-export default function AdminQuizPage() {
+interface AdminQuizPageProps {
+  basePath?: string
+  title?: string
+  description?: string
+}
+
+export default function AdminQuizPage({
+  basePath = '/admin/quiz',
+  title = 'Quiz Questions',
+  description = "Write and manage the quiz that follows each chapter's reading",
+}: AdminQuizPageProps) {
   const versions = useBibleVersions()
   const [versionCode, setVersionCode] = useState<string>()
   const effectiveVersion = versionCode ?? versions.data?.[0]?.code
@@ -33,21 +43,21 @@ export default function AdminQuizPage() {
   const queryClient = useQueryClient()
 
   const canQuery = !!effectiveVersion && !!effectiveBook && !!chapterNumber
-  const queryKey = ['admin-quiz', effectiveVersion, effectiveBook, chapterNumber]
+  const queryKey = ['org-quiz', basePath, effectiveVersion, effectiveBook, chapterNumber]
 
   const { data: questions, isLoading } = useQuery({
     queryKey,
     enabled: canQuery,
     queryFn: async () =>
       (
-        await api.get<QuizQuestionAdmin[]>('/admin/quiz/chapter', {
+        await api.get<QuizQuestionAdmin[]>(`${basePath}/chapter`, {
           params: { version_code: effectiveVersion, book_name: effectiveBook, chapter_number: chapterNumber },
         })
       ).data,
   })
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.delete(`/admin/quiz/${id}`),
+    mutationFn: (id: string) => api.delete(`${basePath}/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey })
       toast.success('Question deleted')
@@ -58,8 +68,8 @@ export default function AdminQuizPage() {
   return (
     <div>
       <AdminPageHeader
-        title="Quiz Questions"
-        description="Write and manage the quiz that follows each chapter's reading"
+        title={title}
+        description={description}
         action={
           <button
             onClick={() => {
@@ -151,6 +161,7 @@ export default function AdminQuizPage() {
 
       {modalOpen && effectiveVersion && effectiveBook && (
         <QuestionModal
+          basePath={basePath}
           versionCode={effectiveVersion}
           bookName={effectiveBook}
           chapterNumber={chapterNumber}
@@ -164,6 +175,7 @@ export default function AdminQuizPage() {
 }
 
 function QuestionModal({
+  basePath,
   versionCode,
   bookName,
   chapterNumber,
@@ -171,6 +183,7 @@ function QuestionModal({
   queryKey,
   onClose,
 }: {
+  basePath: string
   versionCode: string
   bookName: string
   chapterNumber: number
@@ -190,9 +203,9 @@ function QuestionModal({
       const cleanOptions = options.map((o) => o.trim()).filter(Boolean)
       const payload = { question: question.trim(), options: cleanOptions, correct_index: correctIndex, verse_reference: verseReference.trim(), age_group: ageGroup }
       if (editing) {
-        return api.patch(`/admin/quiz/${editing.id}`, payload)
+        return api.patch(`${basePath}/${editing.id}`, payload)
       }
-      return api.post('/admin/quiz/chapter', payload, { params: { version_code: versionCode, book_name: bookName, chapter_number: chapterNumber } })
+      return api.post(`${basePath}/chapter`, payload, { params: { version_code: versionCode, book_name: bookName, chapter_number: chapterNumber } })
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey })

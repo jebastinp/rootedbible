@@ -28,6 +28,8 @@ from app.models.misc import ImportHistory, ImportStatus
 from app.models.user import User, UserRole, UserStatus
 from app.models.reading_plan import ReadingPlan
 from app.models.progress import ReadingProgress
+from app.models.quiz import QuizQuestion
+from app.repositories.bible_repository import BibleRepository
 from app.schemas.misc import CsvPreviewResponse, CsvPreviewRow, CsvImportResult
 from app.services.progress_service import ProgressService
 
@@ -53,6 +55,12 @@ REQUIRED_COLUMNS = {
     "users": {"user_id", "name"},
     "reading_plan": {"day", "date"},
     "progress": {"user_id", "day"},
+    # Matches the "No,Book,Chapter,Q.No,Question,A,B,C,D,Reference,Correct
+    # Option,Correct Answer" template - "no"/"q.no"/"correct_answer" are
+    # accepted but not required (No and Q.No are just row labels; Correct
+    # Answer is redundant with Correct Option and used only as a sanity
+    # cross-check when both are present).
+    "quiz": {"book", "chapter", "question", "a", "b", "c", "d", "correct_option"},
 }
 
 
@@ -61,16 +69,26 @@ class CsvImportService:
         self.db = db
 
     # -----------------------------------------------------------------
-    def preview(self, file_type: str, filename: str, raw_bytes: bytes) -> CsvPreviewResponse:
+    def preview(
+        self,
+        file_type: str,
+        filename: str,
+        raw_bytes: bytes,
+        version_code: str | None = None,
+        church_id: uuid.UUID | None = None,
+        fellowship_id: uuid.UUID | None = None,
+    ) -> CsvPreviewResponse:
         if file_type not in REQUIRED_COLUMNS:
-            raise ValidationError(f"Unsupported file_type '{file_type}'. Must be one of: users, reading_plan, progress")
+            raise ValidationError(f"Unsupported file_type '{file_type}'. Must be one of: users, reading_plan, progress, quiz")
+        if file_type == "quiz" and not version_code:
+            raise ValidationError("version_code is required for a quiz import (Book/Chapter numbers are per Bible version).")
 
         try:
             df = pd.read_csv(io.BytesIO(raw_bytes), dtype=str, keep_default_na=False)
         except Exception as exc:
             raise ValidationError(f"Could not parse CSV file: {exc}")
 
-        df.columns = [c.strip().lower().replace(" ", "_") for c in df.columns]
+        df.columns = [c.strip().lower().replace(" ", "_").replace(".", "") for c in df.columns]
         missing = REQUIRED_COLUMNS[file_type] - set(df.columns)
         if missing:
             raise ValidationError(f"Missing required column(s): {', '.join(sorted(missing))}")
@@ -78,11 +96,15 @@ class CsvImportService:
         rows: list[CsvPreviewRow] = []
         valid_records: list[dict] = []
 
-        validator = {
-            "users": self._validate_user_row,
-            "reading_plan": self._validate_plan_row,
-            "progress": self._validate_progress_row,
-        }[file_type]
+        if file_type == "quiz":
+            def validator(record):
+                return self._validate_quiz_row(record, version_code)
+        else:
+            validator = {
+                "users": self._validate_user_row,
+                "reading_plan": self._validate_plan_row,
+                "progress": self._validate_progress_row,
+            }[file_type]
 
         for idx, row in df.iterrows():
             record = row.to_dict()
@@ -103,6 +125,9 @@ class CsvImportService:
                 "valid_records": valid_records,
                 "total_rows": len(rows),
                 "invalid_rows": sum(1 for r in rows if not r.valid),
+                "version_code": version_code,
+                "church_id": str(church_id) if church_id else None,
+                "fellowship_id": str(fellowship_id) if fellowship_id else None,
             },
         )
 
@@ -144,6 +169,12 @@ class CsvImportService:
                 inserted, updated, skipped, errors = self._import_reading_plan(cached["valid_records"])
             elif file_type == "progress":
                 inserted, updated, skipped, errors = self._import_progress(cached["valid_records"])
+            elif file_type == "quiz":
+                inserted, updated, skipped, errors = self._import_quiz(
+                    cached["valid_records"], cached.get("version_code"),
+                    uuid.UUID(cached["church_id"]) if cached.get("church_id") else None,
+                    uuid.UUID(cached["fellowship_id"]) if cached.get("fellowship_id") else None,
+                )
 
             history.status = ImportStatus.success if not errors else ImportStatus.success
             history.inserted_rows = inserted
@@ -234,6 +265,48 @@ class CsvImportService:
             if not plan:
                 errors.append(f"day {day} does not exist in reading_plan - import reading_plan.csv first")
         return errors, "upsert"
+
+    def _validate_quiz_row(self, record: dict, version_code: str | None) -> tuple[list[str], str]:
+        errors = []
+        book_name = (record.get("book") or "").strip()
+        if not book_name:
+            errors.append("book is required")
+
+        chapter_number = None
+        try:
+            chapter_number = int((record.get("chapter") or "").strip())
+            if chapter_number <= 0:
+                errors.append("chapter must be a positive integer")
+                chapter_number = None
+        except (ValueError, AttributeError):
+            errors.append("chapter must be a valid integer")
+
+        if not (record.get("question") or "").strip():
+            errors.append("question is required")
+
+        options = [(record.get(letter) or "").strip() for letter in ("a", "b", "c", "d")]
+        if sum(1 for o in options if o) < 2:
+            errors.append("at least 2 of A/B/C/D are required")
+
+        correct_option = (record.get("correct_option") or "").strip().upper()
+        if correct_option not in ("A", "B", "C", "D"):
+            errors.append("correct_option must be one of A, B, C, D")
+        elif not options[{"A": 0, "B": 1, "C": 2, "D": 3}[correct_option]]:
+            errors.append(f"correct_option '{correct_option}' points at an empty option")
+
+        if book_name and chapter_number and version_code:
+            bible = BibleRepository(self.db)
+            version = bible.get_version_by_code(version_code)
+            if not version:
+                errors.append(f"Bible version '{version_code}' not found")
+            else:
+                book = bible.get_book_by_name(version.id, book_name)
+                if not book:
+                    errors.append(f"'{book_name}' isn't a recognized book in {version.version_name}")
+                elif not bible.get_chapter(book.id, chapter_number):
+                    errors.append(f"{book_name} {chapter_number} not found in {version.version_name}")
+
+        return errors, "insert"
 
     # -----------------------------------------------------------------
     # IMPORTERS (upsert semantics)
@@ -355,4 +428,51 @@ class CsvImportService:
         for user_id in affected_users:
             progress_service.recalculate_stats(user_id)
 
+        return inserted, updated, skipped, errors
+
+    def _import_quiz(self, records: list[dict], version_code: str | None, church_id: uuid.UUID | None, fellowship_id: uuid.UUID | None):
+        """Always inserts new questions (never updates/overwrites an
+        existing one, since a CSV row has no id to match against) - scoped
+        to church_id/fellowship_id's own quiz bank, or the platform bank
+        when both are None, exactly like the single-question admin form."""
+        inserted = updated = skipped = 0
+        errors: list[str] = []
+        bible = BibleRepository(self.db)
+        version = bible.get_version_by_code(version_code) if version_code else None
+        chapter_cache: dict[tuple[str, int], uuid.UUID] = {}
+
+        for r in records:
+            try:
+                book_name = r["book"].strip()
+                chapter_number = int(r["chapter"])
+                cache_key = (book_name.lower(), chapter_number)
+                chapter_id = chapter_cache.get(cache_key)
+                if not chapter_id:
+                    book = bible.get_book_by_name(version.id, book_name)
+                    chapter = bible.get_chapter(book.id, chapter_number)
+                    chapter_id = chapter.id
+                    chapter_cache[cache_key] = chapter_id
+
+                raw_options = [r.get(letter, "").strip() for letter in ("a", "b", "c", "d")]
+                correct_letter_index = {"A": 0, "B": 1, "C": 2, "D": 3}[r["correct_option"].strip().upper()]
+                # QuizQuestion.options drops blank slots (a row need not use
+                # all 4 letters), so the stored index must be recomputed
+                # against that COMPACTED list, not the raw A/B/C/D slot.
+                options = [o for o in raw_options if o]
+                correct_index = sum(1 for o in raw_options[:correct_letter_index] if o)
+
+                reference = (r.get("reference") or "").strip() or f"{book_name} {chapter_number}"
+
+                question = QuizQuestion(
+                    chapter_id=chapter_id, church_id=church_id, fellowship_id=fellowship_id,
+                    question=r["question"].strip(), options=options, correct_index=correct_index,
+                    verse_reference=reference, age_group="adult",
+                )
+                self.db.add(question)
+                inserted += 1
+            except Exception as exc:
+                skipped += 1
+                errors.append(f"row book={r.get('book')} chapter={r.get('chapter')}: {exc}")
+
+        self.db.commit()
         return inserted, updated, skipped, errors

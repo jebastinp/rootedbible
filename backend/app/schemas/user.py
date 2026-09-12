@@ -58,6 +58,8 @@ class UserOut(UserBase):
     state_name: Optional[str] = None
     postcode: Optional[str] = None
     country: Optional[str] = None
+    active_calendar_church_id: Optional[uuid.UUID] = None
+    active_calendar_fellowship_id: Optional[uuid.UUID] = None
 
 
 class UserWithStats(UserOut):
@@ -75,6 +77,15 @@ class SupabaseLoginRequest(BaseModel):
     access_token: str = Field(min_length=10, description="Supabase Auth session access token (JWT), after signInWithOAuth")
 
 
+class AdminOrgOut(BaseModel):
+    """One Church/Fellowship this user is the owner/admin of - used at
+    sign-in to route them straight to that org's own admin page instead of
+    the regular member Home, without touching their platform-wide role."""
+    kind: str  # "church" | "fellowship"
+    org_id: uuid.UUID
+    name: str
+
+
 class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str
@@ -82,6 +93,7 @@ class TokenResponse(BaseModel):
     user: UserOut
     is_new_user: bool = False
     needs_onboarding: bool = False
+    admin_orgs: list[AdminOrgOut] = []
 
 
 class RefreshRequest(BaseModel):

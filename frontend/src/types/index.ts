@@ -19,6 +19,8 @@ export interface User {
   state_name?: string | null
   postcode?: string | null
   country?: string | null
+  active_calendar_church_id?: string | null
+  active_calendar_fellowship_id?: string | null
 }
 
 export interface UserWithStats extends User {
@@ -288,6 +290,7 @@ export interface ChurchDetail extends ChurchSummary {
 export interface FellowshipSummary {
   id: string
   name: string
+  fellowship_code: string
   description?: string | null
   church_id?: string | null
   church_name?: string | null

@@ -29,14 +29,28 @@ class QuizService:
     """
     PASS_THRESHOLD = 0.7
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, church_id: uuid.UUID | None = None, fellowship_id: uuid.UUID | None = None):
         self.db = db
         self.quiz_repo = QuizRepository(db)
         self.bible_repo = BibleRepository(db)
         self.progress_service = ProgressService(db)
+        self.church_id = church_id
+        self.fellowship_id = fellowship_id
 
-    def get_quiz_for_chapter(self, chapter_id: uuid.UUID, age_group: str = "adult") -> QuizForChapterOut:
-        questions = self.quiz_repo.get_questions_for_chapter(chapter_id, age_group)
+    def get_quiz_for_chapter(self, chapter_id: uuid.UUID, age_group: str = "adult", user_id: uuid.UUID | None = None) -> QuizForChapterOut:
+        """Draws from the member's chosen Church/Fellowship's own quiz bank
+        for this chapter if they have one; falls back to the platform bank
+        otherwise (same fallback rule as the reading calendar)."""
+        church_id = fellowship_id = None
+        if user_id is not None:
+            from app.models.user import User
+            user = self.db.query(User).filter(User.id == user_id).first()
+            if user:
+                church_id, fellowship_id = user.active_calendar_church_id, user.active_calendar_fellowship_id
+
+        questions = self.quiz_repo.get_questions_for_chapter(chapter_id, age_group, church_id, fellowship_id)
+        if not questions and (church_id or fellowship_id):
+            questions = self.quiz_repo.get_questions_for_chapter(chapter_id, age_group)
         if not questions:
             raise NotFoundError("No quiz questions have been written for this chapter yet.")
         return QuizForChapterOut(
@@ -47,11 +61,13 @@ class QuizService:
     def submit_attempt(self, user_id: uuid.UUID, payload: QuizSubmitRequest) -> QuizSubmitResponse:
         score = 0
         hints: list[WrongAnswerHint] = []
+        church_id = fellowship_id = None
 
         for answer in payload.answers:
             question = self.quiz_repo.get_question_by_id(answer.question_id)
             if not question:
                 continue
+            church_id, fellowship_id = question.church_id, question.fellowship_id
             if answer.selected_index == question.correct_index:
                 score += 1
             else:
@@ -67,6 +83,8 @@ class QuizService:
             user_id=user_id,
             reading_plan_id=payload.reading_plan_id,
             chapter_id=payload.chapter_id,
+            church_id=church_id,
+            fellowship_id=fellowship_id,
             score=score,
             total_questions=total,
             passed=passed,
@@ -110,12 +128,13 @@ class QuizService:
             raise ValidationError("correct_index must point at one of the given options.")
 
     def admin_list_questions_for_chapter(self, chapter_id: uuid.UUID) -> list[QuizQuestionAdminOut]:
-        return [QuizQuestionAdminOut.model_validate(q) for q in self.quiz_repo.list_all_for_chapter(chapter_id)]
+        return [QuizQuestionAdminOut.model_validate(q) for q in self.quiz_repo.list_all_for_chapter(chapter_id, self.church_id, self.fellowship_id)]
 
     def admin_create_question(self, actor_id: uuid.UUID, chapter_id: uuid.UUID, payload: QuizQuestionCreate) -> QuizQuestionAdminOut:
         self._validate_correct_index(payload.options, payload.correct_index)
         question = QuizQuestion(
-            chapter_id=chapter_id, question=payload.question, options=payload.options,
+            chapter_id=chapter_id, church_id=self.church_id, fellowship_id=self.fellowship_id,
+            question=payload.question, options=payload.options,
             correct_index=payload.correct_index, verse_reference=payload.verse_reference, age_group=payload.age_group,
         )
         self.db.add(question)
@@ -127,7 +146,7 @@ class QuizService:
 
     def _get_question(self, question_id: uuid.UUID) -> QuizQuestion:
         question = self.quiz_repo.get_question_by_id(question_id)
-        if not question:
+        if not question or question.church_id != self.church_id or question.fellowship_id != self.fellowship_id:
             raise NotFoundError("Quiz question not found.")
         return question
 

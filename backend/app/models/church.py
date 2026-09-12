@@ -37,6 +37,10 @@ class Church(Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     address: Mapped[str | None] = mapped_column(Text, nullable=True)
     owner_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    # An email pre-registered as this church's admin before that person has
+    # even signed up - resolved into a real owner membership automatically
+    # the moment someone signs up with this email (see UserRepository.create).
+    pending_admin_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     privacy: Mapped[str] = mapped_column(String(20), nullable=False, default=CommunityPrivacy.public.value)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default=ChurchStatus.active.value)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

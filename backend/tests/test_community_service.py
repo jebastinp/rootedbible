@@ -76,6 +76,40 @@ def test_church_join_by_code_then_approve(db, make_user):
     assert joiner.user_id in member_ids
 
 
+def test_fellowship_join_by_code_then_approve(db, make_user):
+    owner = make_user()
+    joiner = make_user()
+    service = CommunityService(db)
+
+    fellowship = service.admin_create_fellowship(owner.id, FellowshipCreate(name="Youth Fellowship", privacy="public"))
+    assert fellowship.fellowship_code.startswith("ROOTED-")
+
+    request = service.request_join_fellowship(joiner.id, fellowship_code=fellowship.fellowship_code)
+    assert request.status == "pending"
+
+    service.respond_to_fellowship_request(owner.id, request.id, approve=True)
+
+    detail = service.get_fellowship_detail(owner.id, fellowship.id)
+    assert detail.member_count == 2
+    member_ids = {m.user_id for m in detail.members}
+    assert joiner.user_id in member_ids
+
+
+def test_fellowship_join_by_code_is_case_insensitive_and_unknown_code_rejected(db, make_user):
+    owner = make_user()
+    joiner = make_user()
+    service = CommunityService(db)
+    fellowship = service.admin_create_fellowship(owner.id, FellowshipCreate(name="Men's Fellowship", privacy="public"))
+
+    request = service.request_join_fellowship(joiner.id, fellowship_code=fellowship.fellowship_code.lower())
+    assert request.fellowship_id == fellowship.id
+
+    from app.core.exceptions import NotFoundError
+    other = make_user()
+    with pytest.raises(NotFoundError):
+        service.request_join_fellowship(other.id, fellowship_code="ROOTED-NOPE00")
+
+
 def test_private_church_still_visible_to_platform_admin(db, make_user):
     """Rule 6: Super Admin must see every Family/Buddy/Church/Fellowship,
     including private ones, in the platform-wide admin listing."""

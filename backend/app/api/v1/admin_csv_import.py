@@ -12,13 +12,14 @@ router = APIRouter(prefix="/admin/csv-import", tags=["Admin - CSV Import"])
 
 @router.post("/preview", response_model=CsvPreviewResponse, summary="Upload + validate + preview a CSV before importing")
 async def preview_csv(
-    file_type: str = Form(..., description="users | reading_plan | progress"),
+    file_type: str = Form(..., description="users | reading_plan | progress | quiz"),
     file: UploadFile = File(...),
+    version_code: str | None = Form(None, description="Required when file_type=quiz - Book/Chapter numbers are per Bible version"),
     db: Session = Depends(get_db),
     _: User = Depends(require_admin),
 ):
     raw_bytes = await file.read()
-    return CsvImportService(db).preview(file_type, file.filename, raw_bytes)
+    return CsvImportService(db).preview(file_type, file.filename, raw_bytes, version_code=version_code)
 
 
 @router.post("/confirm", response_model=CsvImportResult, summary="Confirm and run the import for a previously previewed file")

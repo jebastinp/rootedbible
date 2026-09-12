@@ -93,15 +93,40 @@ class AuthService:
         if user.status == UserStatus.inactive:
             raise ForbiddenError("This account is inactive. Please contact your church admin.")
 
-    @staticmethod
-    def _issue_tokens(user) -> TokenResponse:
+    def _issue_tokens(self, user) -> TokenResponse:
         access_token = create_access_token(subject=str(user.id), role=user.role.value, extra_claims={"user_code": user.user_id})
         refresh_token = create_refresh_token(subject=str(user.id))
         return TokenResponse(
             access_token=access_token,
             refresh_token=refresh_token,
             user=UserOut.model_validate(user),
+            admin_orgs=self._list_admin_orgs(user.id),
         )
+
+    def _list_admin_orgs(self, user_id) -> list:
+        """Every Church/Fellowship this user owns/admins - lets the frontend
+        route them straight to that org's own admin page at sign-in without
+        granting them any platform-wide role."""
+        from app.schemas.user import AdminOrgOut
+        from app.models.church import Church, ChurchMember
+        from app.models.fellowship import Fellowship, FellowshipMember
+
+        orgs = []
+        for member, church in (
+            self.db.query(ChurchMember, Church)
+            .join(Church, Church.id == ChurchMember.church_id)
+            .filter(ChurchMember.user_id == user_id, ChurchMember.status == "active", ChurchMember.role.in_(["owner", "admin"]))
+            .all()
+        ):
+            orgs.append(AdminOrgOut(kind="church", org_id=church.id, name=church.name))
+        for member, fellowship in (
+            self.db.query(FellowshipMember, Fellowship)
+            .join(Fellowship, Fellowship.id == FellowshipMember.fellowship_id)
+            .filter(FellowshipMember.user_id == user_id, FellowshipMember.status == "active", FellowshipMember.role.in_(["owner", "admin"]))
+            .all()
+        ):
+            orgs.append(AdminOrgOut(kind="fellowship", org_id=fellowship.id, name=fellowship.name))
+        return orgs
 
     def refresh(self, refresh_token: str) -> TokenResponse:
         try:

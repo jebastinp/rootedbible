@@ -5,7 +5,7 @@ from datetime import date
 
 from sqlalchemy.orm import Session
 
-from app.models.reading_plan import ReadingPlan, ReadingPlanPassage
+from app.models.reading_plan import ReadingPlan, ReadingPlanPassage, compute_scope_key
 
 
 class ReadingPlanRepository:
@@ -15,15 +15,19 @@ class ReadingPlanRepository:
     def get_by_id(self, plan_id: uuid.UUID) -> ReadingPlan | None:
         return self.db.query(ReadingPlan).filter(ReadingPlan.id == plan_id, ReadingPlan.deleted_at.is_(None)).first()
 
-    def get_by_day(self, day_number: int) -> ReadingPlan | None:
-        return self.db.query(ReadingPlan).filter(ReadingPlan.day_number == day_number, ReadingPlan.deleted_at.is_(None)).first()
+    def get_by_day(self, day_number: int, scope_key: str = "platform") -> ReadingPlan | None:
+        return self.db.query(ReadingPlan).filter(
+            ReadingPlan.day_number == day_number, ReadingPlan.scope_key == scope_key, ReadingPlan.deleted_at.is_(None)
+        ).first()
 
-    def get_today(self, today: date | None = None) -> ReadingPlan | None:
+    def get_today(self, today: date | None = None, scope_key: str = "platform") -> ReadingPlan | None:
         today = today or date.today()
-        return self.db.query(ReadingPlan).filter(ReadingPlan.reading_date == today, ReadingPlan.deleted_at.is_(None)).first()
+        return self.db.query(ReadingPlan).filter(
+            ReadingPlan.reading_date == today, ReadingPlan.scope_key == scope_key, ReadingPlan.deleted_at.is_(None)
+        ).first()
 
-    def list(self, search: str | None = None, page: int = 1, page_size: int = 30) -> tuple[list[ReadingPlan], int]:
-        query = self.db.query(ReadingPlan).filter(ReadingPlan.deleted_at.is_(None))
+    def list(self, scope_key: str = "platform", search: str | None = None, page: int = 1, page_size: int = 30) -> tuple[list[ReadingPlan], int]:
+        query = self.db.query(ReadingPlan).filter(ReadingPlan.scope_key == scope_key, ReadingPlan.deleted_at.is_(None))
         if search:
             like = f"%{search}%"
             query = query.filter((ReadingPlan.old_testament.ilike(like)) | (ReadingPlan.new_testament.ilike(like)))
@@ -31,11 +35,11 @@ class ReadingPlanRepository:
         items = query.order_by(ReadingPlan.day_number.asc()).offset((page - 1) * page_size).limit(page_size).all()
         return items, total
 
-    def list_all_ordered(self) -> list[ReadingPlan]:
-        return self.db.query(ReadingPlan).filter(ReadingPlan.deleted_at.is_(None)).order_by(ReadingPlan.day_number.asc()).all()
+    def list_all_ordered(self, scope_key: str = "platform") -> list[ReadingPlan]:
+        return self.db.query(ReadingPlan).filter(ReadingPlan.scope_key == scope_key, ReadingPlan.deleted_at.is_(None)).order_by(ReadingPlan.day_number.asc()).all()
 
-    def total_days(self) -> int:
-        return self.db.query(ReadingPlan).filter(ReadingPlan.deleted_at.is_(None)).count()
+    def total_days(self, scope_key: str = "platform") -> int:
+        return self.db.query(ReadingPlan).filter(ReadingPlan.scope_key == scope_key, ReadingPlan.deleted_at.is_(None)).count()
 
     def get_passages(self, plan_id: uuid.UUID) -> list[ReadingPlanPassage]:
         return (
@@ -45,8 +49,8 @@ class ReadingPlanRepository:
             .all()
         )
 
-    def create(self, **kwargs) -> ReadingPlan:
-        plan = ReadingPlan(**kwargs)
+    def create(self, church_id: uuid.UUID | None = None, fellowship_id: uuid.UUID | None = None, **kwargs) -> ReadingPlan:
+        plan = ReadingPlan(church_id=church_id, fellowship_id=fellowship_id, scope_key=compute_scope_key(church_id, fellowship_id), **kwargs)
         self.db.add(plan)
         self.db.commit()
         self.db.refresh(plan)

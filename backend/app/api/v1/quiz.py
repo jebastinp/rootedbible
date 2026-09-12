@@ -23,7 +23,7 @@ def get_quiz(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    return QuizService(db).get_quiz_for_chapter(chapter_id, age_group)
+    return QuizService(db).get_quiz_for_chapter(chapter_id, age_group, user_id=current_user.id)
 
 
 @router.post("/attempt", response_model=QuizSubmitResponse, summary="Submit quiz answers, allow retry")

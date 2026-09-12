@@ -177,9 +177,28 @@ export function useRemoveGroupMember(kind: 'family' | 'buddy', groupId: string) 
 
 export function useEncourageGroup(kind: 'family' | 'buddy', groupId: string) {
   const path = kind === 'family' ? 'family' : 'buddy-group'
+  const qc = useQueryClient()
   return useMutation({
     mutationFn: async (payload: { message: string; to_user_id?: string }) =>
       (await api.post(`/community/${path}/${groupId}/encourage`, payload)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['group-encouragements', kind, groupId] }),
+  })
+}
+
+export interface Encouragement {
+  id: string
+  from_name: string
+  to_name: string | null
+  message: string
+  created_at: string
+}
+
+export function useGroupEncouragements(kind: 'family' | 'buddy', groupId: string | undefined) {
+  const path = kind === 'family' ? 'family' : 'buddy-group'
+  return useQuery({
+    queryKey: ['group-encouragements', kind, groupId],
+    enabled: !!groupId,
+    queryFn: async () => (await api.get<Encouragement[]>(`/community/${path}/${groupId}/encouragements`)).data,
   })
 }
 

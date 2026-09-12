@@ -8,27 +8,38 @@ import type { PaginatedResponse, ReadingPlanDay } from '@/types'
 
 const PAGE_SIZE = 15
 
-export default function AdminReadingPlanPage() {
+interface AdminReadingPlanPageProps {
+  basePath?: string
+  title?: string
+  description?: string
+}
+
+export default function AdminReadingPlanPage({
+  basePath = '/admin/reading-plan',
+  title = 'Reading Plan',
+  description = 'The single church-wide daily reading schedule',
+}: AdminReadingPlanPageProps) {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [modalOpen, setModalOpen] = useState(false)
   const [editingDay, setEditingDay] = useState<ReadingPlanDay | null>(null)
   const queryClient = useQueryClient()
+  const queryKey = ['reading-plan', basePath, search, page]
 
   const { data, isLoading } = useQuery({
-    queryKey: ['admin-reading-plan', search, page],
+    queryKey,
     queryFn: async () =>
       (
-        await api.get<PaginatedResponse<ReadingPlanDay>>('/admin/reading-plan', {
+        await api.get<PaginatedResponse<ReadingPlanDay>>(basePath, {
           params: { search: search || undefined, page, page_size: PAGE_SIZE },
         })
       ).data,
   })
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.delete(`/admin/reading-plan/${id}`),
+    mutationFn: (id: string) => api.delete(`${basePath}/${id}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-reading-plan'] })
+      queryClient.invalidateQueries({ queryKey: ['reading-plan', basePath] })
       toast.success('Reading day deleted')
     },
     onError: (err) => toast.error(getApiErrorMessage(err)),
@@ -39,8 +50,8 @@ export default function AdminReadingPlanPage() {
   return (
     <div>
       <AdminPageHeader
-        title="Reading Plan"
-        description="The single church-wide daily reading schedule"
+        title={title}
+        description={description}
         action={
           <button
             onClick={() => {
@@ -148,11 +159,12 @@ export default function AdminReadingPlanPage() {
 
       {modalOpen && (
         <PlanDayModal
+          basePath={basePath}
           day={editingDay}
           onClose={() => setModalOpen(false)}
           onSaved={() => {
             setModalOpen(false)
-            queryClient.invalidateQueries({ queryKey: ['admin-reading-plan'] })
+            queryClient.invalidateQueries({ queryKey: ['reading-plan', basePath] })
           }}
         />
       )}
@@ -160,7 +172,7 @@ export default function AdminReadingPlanPage() {
   )
 }
 
-function PlanDayModal({ day, onClose, onSaved }: { day: ReadingPlanDay | null; onClose: () => void; onSaved: () => void }) {
+function PlanDayModal({ basePath, day, onClose, onSaved }: { basePath: string; day: ReadingPlanDay | null; onClose: () => void; onSaved: () => void }) {
   const [form, setForm] = useState({
     day_number: day?.day_number ?? '',
     reading_date: day?.reading_date ?? '',
@@ -182,10 +194,10 @@ function PlanDayModal({ day, onClose, onSaved }: { day: ReadingPlanDay | null; o
         estimated_minutes: Number(form.estimated_minutes),
       }
       if (day) {
-        await api.patch(`/admin/reading-plan/${day.id}`, payload)
+        await api.patch(`${basePath}/${day.id}`, payload)
         toast.success('Reading day updated')
       } else {
-        await api.post('/admin/reading-plan', payload)
+        await api.post(basePath, payload)
         toast.success('Reading day added')
       }
       onSaved()

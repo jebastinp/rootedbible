@@ -31,6 +31,7 @@ from app.api.v1 import (
     admin_community,
     notifications,
     admin_quiz,
+    org_admin,
 )
 
 logging.basicConfig(
@@ -112,6 +113,7 @@ app.include_router(admin_audit_logs.router, prefix=API_PREFIX)
 app.include_router(admin_community.router, prefix=API_PREFIX)
 app.include_router(notifications.router, prefix=API_PREFIX)
 app.include_router(admin_quiz.router, prefix=API_PREFIX)
+app.include_router(org_admin.router, prefix=API_PREFIX)
 
 
 @app.get("/", tags=["Health"])

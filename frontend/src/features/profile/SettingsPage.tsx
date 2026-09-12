@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { LogOut, Sun, Moon, BookOpen, ChevronRight, Save, Loader2 } from 'lucide-react'
+import { LogOut, Sun, Moon, BookOpen, ChevronRight, Save, Loader2, CalendarDays, Check } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/store/authStore'
 import { useTheme } from '@/lib/theme'
@@ -61,6 +61,28 @@ export default function SettingsPage() {
     setSelectedGroupIds(next)
     setGroups.mutate(next, { onError: () => toast.error('Could not update your groups.') })
   }
+
+  const { data: calendarOptions } = useQuery({
+    queryKey: ['calendar-options'],
+    queryFn: async () => (await api.get<{ kind: 'church' | 'fellowship'; org_id: string; name: string }[]>('/profile/calendar-options')).data,
+  })
+  const setActiveCalendar = useMutation({
+    mutationFn: async (payload: { kind: 'church' | 'fellowship' | null; org_id: string | null }) =>
+      (await api.patch('/profile/active-calendar', payload)).data,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['my-profile'] })
+      queryClient.invalidateQueries({ queryKey: ['today-reading'] })
+      queryClient.invalidateQueries({ queryKey: ['plan'] })
+      toast.success('Reading calendar updated')
+    },
+    onError: (err) => toast.error(getApiErrorMessage(err)),
+  })
+  const activeKind: 'platform' | 'church' | 'fellowship' = profile?.active_calendar_church_id
+    ? 'church'
+    : profile?.active_calendar_fellowship_id
+      ? 'fellowship'
+      : 'platform'
+  const activeOrgId = profile?.active_calendar_church_id ?? profile?.active_calendar_fellowship_id ?? null
 
   return (
     <div className="px-5 pt-8 space-y-5 pb-4">
@@ -130,6 +152,43 @@ export default function SettingsPage() {
           </button>
         </div>
       </div>
+
+      {!!calendarOptions?.length && (
+        <div>
+          <p className="text-xs font-semibold text-ink-soft uppercase tracking-wide mb-2 px-1">Reading Calendar</p>
+          <p className="text-xs text-ink-soft mb-2 px-1">Which reading plan and quiz bank do you want to follow?</p>
+          <div className="bg-surface rounded-3xl shadow-soft border border-ink/5 divide-y divide-ink/5 overflow-hidden">
+            <button
+              onClick={() => setActiveCalendar.mutate({ kind: null, org_id: null })}
+              disabled={setActiveCalendar.isPending}
+              className="w-full flex items-center justify-between px-5 py-4 disabled:opacity-60"
+            >
+              <div className="flex items-center gap-3">
+                <CalendarDays size={17} className="text-primary" />
+                <p className="text-sm font-medium text-ink">Platform Default</p>
+              </div>
+              {activeKind === 'platform' && <Check size={16} className="text-primary" />}
+            </button>
+            {calendarOptions.map((opt) => (
+              <button
+                key={`${opt.kind}-${opt.org_id}`}
+                onClick={() => setActiveCalendar.mutate({ kind: opt.kind, org_id: opt.org_id })}
+                disabled={setActiveCalendar.isPending}
+                className="w-full flex items-center justify-between px-5 py-4 disabled:opacity-60"
+              >
+                <div className="flex items-center gap-3">
+                  <CalendarDays size={17} className="text-primary" />
+                  <div className="text-left">
+                    <p className="text-sm font-medium text-ink">{opt.name}</p>
+                    <p className="text-xs text-ink-soft mt-0.5 capitalize">{opt.kind}</p>
+                  </div>
+                </div>
+                {activeKind === opt.kind && activeOrgId === opt.org_id && <Check size={16} className="text-primary" />}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div>
         <p className="text-xs font-semibold text-ink-soft uppercase tracking-wide mb-2 px-1">Bible</p>

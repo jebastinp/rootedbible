@@ -34,6 +34,7 @@ const ChallengeDetailPage = lazy(() => import('./features/community/ChallengeDet
 const GroupDetailPage = lazy(() => import('./features/community/GroupDetailPage'))
 const ChurchDetailPage = lazy(() => import('./features/community/ChurchDetailPage'))
 const FellowshipDetailPage = lazy(() => import('./features/community/FellowshipDetailPage'))
+const OrgAdminPage = lazy(() => import('./features/community/OrgAdminPage'))
 const NotificationsPage = lazy(() => import('./features/notifications/NotificationsPage'))
 const NotesPage = lazy(() => import('./features/profile/NotesPage'))
 const HighlightsPage = lazy(() => import('./features/profile/HighlightsPage'))
@@ -97,7 +98,9 @@ export default function App() {
             <Route path="/community/family/:id" element={<GroupDetailPage kind="family" />} />
             <Route path="/community/buddy-group/:id" element={<GroupDetailPage kind="buddy" />} />
             <Route path="/community/church/:id" element={<ChurchDetailPage />} />
+            <Route path="/community/church/:id/admin" element={<OrgAdminPage kind="church" />} />
             <Route path="/community/fellowship/:id" element={<FellowshipDetailPage />} />
+            <Route path="/community/fellowship/:id/admin" element={<OrgAdminPage kind="fellowship" />} />
             <Route path="/notifications" element={<NotificationsPage />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/plans" element={<PlanOverviewPage />} />

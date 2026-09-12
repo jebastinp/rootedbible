@@ -1,11 +1,14 @@
+import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { X, Loader2, Users } from 'lucide-react'
 import { toast } from 'sonner'
-import { useDiscoverFellowships, useJoinFellowship } from './useChurch'
+import { useDiscoverFellowships, useJoinFellowship, useJoinFellowshipByCode } from './useChurch'
 
 export default function DiscoverFellowshipSheet({ onClose }: { onClose: () => void }) {
   const { data: fellowships, isLoading } = useDiscoverFellowships()
   const join = useJoinFellowship()
+  const joinByCode = useJoinFellowshipByCode()
+  const [code, setCode] = useState('')
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={onClose}>
@@ -15,6 +18,21 @@ export default function DiscoverFellowshipSheet({ onClose }: { onClose: () => vo
           <button onClick={onClose} aria-label="Close"><X size={18} /></button>
         </div>
 
+        <div>
+          <label className="text-xs font-semibold text-ink-soft uppercase tracking-wide mb-1.5 block">Have a Fellowship Code?</label>
+          <div className="flex items-center gap-2">
+            <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="ROOTED-XXXXXX" className="flex-1 px-4 py-3 rounded-2xl border border-ink/10 bg-background text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-secondary/40" />
+            <button
+              onClick={() => code.trim() && joinByCode.mutate(code.trim(), { onSuccess: () => { toast.success('Request sent'); onClose() }, onError: (err: any) => toast.error(err?.response?.data?.detail || 'Fellowship code not found.') })}
+              disabled={joinByCode.isPending || !code.trim()}
+              className="px-4 py-3 rounded-2xl bg-primary text-white text-sm font-semibold disabled:opacity-50 shrink-0"
+            >
+              Request
+            </button>
+          </div>
+        </div>
+
+        <p className="text-xs font-semibold text-ink-soft uppercase tracking-wide">Public Fellowships</p>
         {isLoading ? (
           <div className="flex items-center justify-center py-10"><Loader2 className="animate-spin text-primary" size={22} /></div>
         ) : !fellowships?.length ? (

@@ -9,7 +9,7 @@ from app.core.exceptions import ValidationError
 from app.models.user import User
 from app.schemas.challenge import (
     RootedIdLookupOut, ChallengeSummaryOut, ChallengeDetailOut, ChallengeAdminOut,
-    GroupCreate, GroupDetailOut, InviteByRootedId, JoinRequestOut, RewardEarnedOut, EncouragementCreate,
+    GroupCreate, GroupDetailOut, InviteByRootedId, JoinRequestOut, RewardEarnedOut, EncouragementCreate, EncouragementOut,
     LeaderboardConfigOut, LeaderboardOut,
 )
 from app.schemas.community import (
@@ -132,6 +132,11 @@ def encourage_family(family_id: uuid.UUID, payload: EncouragementCreate, current
     return {"success": True}
 
 
+@router.get("/family/{family_id}/encouragements", response_model=list[EncouragementOut], summary="Recent encouragements sent to this Family")
+def list_family_encouragements(family_id: uuid.UUID, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return ChallengeService(db).list_group_encouragements("family", current_user.id, family_id)
+
+
 # -----------------------------------------------------------------------
 # Buddy Group - standalone (no size cap); may optionally also be linked to
 # a single Church Challenge for that challenge's leaderboard.
@@ -188,6 +193,11 @@ def delete_buddy_group(group_id: uuid.UUID, current_user: User = Depends(get_cur
 def encourage_buddy_group(group_id: uuid.UUID, payload: EncouragementCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     ChallengeService(db).send_group_encouragement("buddy", current_user.id, group_id, payload)
     return {"success": True}
+
+
+@router.get("/buddy-group/{group_id}/encouragements", response_model=list[EncouragementOut], summary="Recent encouragements sent to this Buddy Group")
+def list_buddy_group_encouragements(group_id: uuid.UUID, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return ChallengeService(db).list_group_encouragements("buddy", current_user.id, group_id)
 
 
 # -----------------------------------------------------------------------
@@ -308,7 +318,13 @@ def get_fellowship(fellowship_id: uuid.UUID, current_user: User = Depends(get_cu
 
 @router.post("/fellowship/{fellowship_id}/join", summary="Request to join a Fellowship")
 def join_fellowship(fellowship_id: uuid.UUID, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    request = CommunityService(db).request_join_fellowship(current_user.id, fellowship_id)
+    request = CommunityService(db).request_join_fellowship(current_user.id, fellowship_id=fellowship_id)
+    return {"request_id": request.id, "status": request.status}
+
+
+@router.post("/fellowship/join-by-code/{fellowship_code}", summary="Request to join a Fellowship by its code")
+def join_fellowship_by_code(fellowship_code: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    request = CommunityService(db).request_join_fellowship(current_user.id, fellowship_code=fellowship_code)
     return {"request_id": request.id, "status": request.status}
 
 

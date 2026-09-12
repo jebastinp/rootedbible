@@ -263,12 +263,22 @@ export default function ReadingScreen() {
           <ArrowLeft size={20} />
         </button>
 
-        <button onClick={() => setVersionPickerOpen(true)} className="flex-1 min-w-0 text-center">
-          <p className="font-semibold text-sm truncate">{book} {chapterNumber}</p>
-          <p className="text-[11px] opacity-60 flex items-center justify-center gap-0.5">
-            {selectedVersion?.code.toUpperCase() ?? '—'} <ChevronDown size={11} />
-          </p>
-        </button>
+        <div className="flex-1 min-w-0 flex items-center justify-center gap-1.5">
+          <button
+            onClick={() => navigate(`/bible/${encodeURIComponent(book)}?version=${selectedVersion?.code ?? ''}`)}
+            className="min-w-0 flex items-center gap-1 bg-ink/5 rounded-full pl-3.5 pr-2.5 py-1.5 active:scale-95 transition-transform"
+          >
+            <span className="font-semibold text-sm truncate">{book} {chapterNumber}</span>
+            <ChevronDown size={13} className="opacity-60 shrink-0" />
+          </button>
+          <button
+            onClick={() => setVersionPickerOpen(true)}
+            className="shrink-0 flex items-center gap-1 bg-ink/5 rounded-full pl-3.5 pr-2.5 py-1.5 active:scale-95 transition-transform"
+          >
+            <span className="font-semibold text-xs">{selectedVersion?.code.toUpperCase() ?? '—'}</span>
+            <ChevronDown size={13} className="opacity-60 shrink-0" />
+          </button>
+        </div>
 
         <div className="flex items-center gap-1 shrink-0">
           <button onClick={() => navigate(`/bible/search?version=${selectedVersion?.code ?? ''}`)} className="p-2 rounded-full active:scale-95" aria-label="Search">
@@ -343,13 +353,13 @@ export default function ReadingScreen() {
                   onClick={() => toggleVerse(verse.verse_number)}
                   className={cn(
                     'flex gap-2.5 cursor-pointer rounded-lg px-1.5 -mx-1.5 py-0.5 transition-colors',
-                    isSelected && 'bg-primary/20',
+                    isSelected && 'bg-primary/10',
                     !isSelected && hl && HIGHLIGHT_BG[hl.color],
                     flashVerse === verse.verse_number && 'ring-2 ring-secondary'
                   )}
                 >
                   <span className="text-[0.7em] font-semibold opacity-60 shrink-0 pt-[0.2em] tabular-nums">{verse.verse_number}</span>
-                  <span>
+                  <span className={cn(isSelected && 'font-semibold underline decoration-2 decoration-primary underline-offset-4')}>
                     {verse.text}
                     {hasNote && <StickyNote size={12} className="inline-block ml-1 mb-1 opacity-60" aria-label="Has a note" />}
                   </span>

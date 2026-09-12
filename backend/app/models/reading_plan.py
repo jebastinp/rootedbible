@@ -1,20 +1,44 @@
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import String, Integer, Date, DateTime, Text, func, CheckConstraint, ForeignKey
+from sqlalchemy import String, Integer, Date, DateTime, Text, func, CheckConstraint, UniqueConstraint, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base
 
 
+def compute_scope_key(church_id: uuid.UUID | None = None, fellowship_id: uuid.UUID | None = None) -> str:
+    """Same "platform" / "church:<id>" / "fellowship:<id>" key ReadingPlan
+    rows are partitioned by - shared by the reading-plan and quiz scoping
+    logic so both agree on what "this org's own calendar/bank" means."""
+    if church_id:
+        return f"church:{church_id}"
+    if fellowship_id:
+        return f"fellowship:{fellowship_id}"
+    return "platform"
+
+
 class ReadingPlan(Base):
+    """Day-by-day reading calendar. `scope_key` = "platform" for the shared
+    platform-wide calendar, or "church:<id>" / "fellowship:<id>" for a Church
+    or Fellowship's own independent calendar - day_number/reading_date are
+    only unique WITHIN a scope, so an org can run its own calendar without
+    colliding with the platform default or any other org's."""
     __tablename__ = "reading_plan"
-    __table_args__ = (CheckConstraint("day_number > 0", name="chk_day_number_positive"),)
+    __table_args__ = (
+        CheckConstraint("day_number > 0", name="chk_day_number_positive"),
+        CheckConstraint("not (church_id is not null and fellowship_id is not null)", name="chk_reading_plan_one_scope"),
+        UniqueConstraint("scope_key", "day_number", name="uq_reading_plan_scope_day"),
+        UniqueConstraint("scope_key", "reading_date", name="uq_reading_plan_scope_date"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    day_number: Mapped[int] = mapped_column(Integer, unique=True, nullable=False)
-    reading_date: Mapped[date] = mapped_column(Date, unique=True, nullable=False)
+    scope_key: Mapped[str] = mapped_column(String(80), nullable=False, default="platform")
+    church_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("church.id", ondelete="CASCADE"), nullable=True)
+    fellowship_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("fellowship.id", ondelete="CASCADE"), nullable=True)
+    day_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    reading_date: Mapped[date] = mapped_column(Date, nullable=False)
     old_testament: Mapped[str | None] = mapped_column(Text, nullable=True)
     new_testament: Mapped[str | None] = mapped_column(Text, nullable=True)
     estimated_minutes: Mapped[int] = mapped_column(Integer, default=15, nullable=False)

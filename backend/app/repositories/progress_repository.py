@@ -34,13 +34,16 @@ class ProgressRepository:
         self.db.refresh(entry)
         return entry
 
-    def all_for_user(self, user_id: uuid.UUID) -> list[ReadingProgress]:
-        return (
-            self.db.query(ReadingProgress)
-            .filter(ReadingProgress.user_id == user_id)
-            .order_by(ReadingProgress.day_number.asc())
-            .all()
-        )
+    def all_for_user(self, user_id: uuid.UUID, scope_key: str | None = None) -> list[ReadingProgress]:
+        """scope_key restricts results to progress against ONE calendar
+        (platform / a specific Church's / a specific Fellowship's) - day
+        numbers are only unique within a scope, so mixing scopes here would
+        silently corrupt streak/percentage math for a member who switches
+        their active calendar."""
+        query = self.db.query(ReadingProgress).filter(ReadingProgress.user_id == user_id)
+        if scope_key is not None:
+            query = query.join(ReadingPlan, ReadingPlan.id == ReadingProgress.reading_plan_id).filter(ReadingPlan.scope_key == scope_key)
+        return query.order_by(ReadingProgress.day_number.asc()).all()
 
     def completed_for_user(self, user_id: uuid.UUID) -> list[ReadingProgress]:
         return (
