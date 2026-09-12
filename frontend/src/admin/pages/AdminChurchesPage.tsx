@@ -133,11 +133,13 @@ function EditChurchModal({ church, onClose }: { church: ChurchSummary; onClose: 
   const [description, setDescription] = useState(church.description ?? '')
   const [address, setAddress] = useState(church.address ?? '')
   const [privacy, setPrivacy] = useState<string>(church.privacy)
+  const [adminEmail, setAdminEmail] = useState(church.pending_admin_email ?? '')
 
   const save = useMutation({
     mutationFn: async () =>
       (await api.patch(`/admin/churches/${church.id}`, {
         name: name.trim(), description: description.trim() || null, address: address.trim() || null, privacy,
+        admin_email: adminEmail.trim() !== (church.pending_admin_email ?? '') ? adminEmail.trim() : undefined,
       })).data,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-churches'] })
@@ -170,6 +172,11 @@ function EditChurchModal({ church, onClose }: { church: ChurchSummary; onClose: 
             <option value="private">Private - join by code only</option>
             <option value="invite_only">Invite only</option>
           </select>
+        </div>
+        <div>
+          <label className="text-xs font-semibold text-ink-soft uppercase tracking-wide mb-1 block">Admin Email</label>
+          <input value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} placeholder="pastor@example.com" className="admin-input" maxLength={255} />
+          <p className="text-xs text-ink-soft mt-1">Fix a mistyped invite, or set a new one. If this email already has a Rooted account, they become owner immediately. Leave blank to clear.</p>
         </div>
         <button
           onClick={() => name.trim().length >= 2 ? save.mutate() : toast.error('Give the church a name (at least 2 characters).')}

@@ -134,11 +134,13 @@ function EditFellowshipModal({ fellowship, onClose }: { fellowship: FellowshipSu
   const [name, setName] = useState(fellowship.name)
   const [description, setDescription] = useState(fellowship.description ?? '')
   const [privacy, setPrivacy] = useState<string>(fellowship.privacy)
+  const [adminEmail, setAdminEmail] = useState(fellowship.pending_admin_email ?? '')
 
   const save = useMutation({
     mutationFn: async () =>
       (await api.patch(`/admin/fellowships/${fellowship.id}`, {
         name: name.trim(), description: description.trim() || null, privacy,
+        admin_email: adminEmail.trim() !== (fellowship.pending_admin_email ?? '') ? adminEmail.trim() : undefined,
       })).data,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-fellowships'] })
@@ -167,6 +169,11 @@ function EditFellowshipModal({ fellowship, onClose }: { fellowship: FellowshipSu
             <option value="private">Private</option>
             <option value="invite_only">Invite only</option>
           </select>
+        </div>
+        <div>
+          <label className="text-xs font-semibold text-ink-soft uppercase tracking-wide mb-1 block">Admin Email</label>
+          <input value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} placeholder="leader@example.com" className="admin-input" maxLength={255} />
+          <p className="text-xs text-ink-soft mt-1">Fix a mistyped invite, or set a new one. If this email already has a Rooted account, they become owner immediately. Leave blank to clear.</p>
         </div>
         <button
           onClick={() => name.trim().length >= 2 ? save.mutate() : toast.error('Give the fellowship a name (at least 2 characters).')}

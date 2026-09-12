@@ -232,12 +232,43 @@ class CommunityService:
         churches = self.db.query(Church).order_by(Church.created_at.desc()).all()
         return [self._to_church_out(c, None) for c in churches]
 
+    def _apply_admin_email_correction(self, kind: str, entity, email: str) -> None:
+        """Corrects a mistyped pending admin invite email (or sets a new
+        one) on an EXISTING Church/Fellowship. If this email already
+        belongs to a Rooted account, that person becomes owner immediately
+        (same rule as at creation time); otherwise it just replaces the
+        pending invite email so the right person can resolve it later. An
+        empty string clears the pending invite entirely."""
+        from app.repositories.user_repository import UserRepository
+
+        normalized = email.strip().lower()
+        if not normalized:
+            entity.pending_admin_email = None
+            return
+        existing = UserRepository(self.db).get_by_email(normalized)
+        if existing:
+            entity.owner_id = existing.id
+            entity.pending_admin_email = None
+            MemberModel = self._member_model(kind)
+            fk = self._fk(kind)
+            member = self.db.query(MemberModel).filter(getattr(MemberModel, fk) == entity.id, MemberModel.user_id == existing.id).first()
+            if member:
+                member.status = "active"
+                member.role = "owner"
+            else:
+                self.db.add(MemberModel(**{fk: entity.id, "user_id": existing.id, "role": "owner", "status": "active"}))
+        else:
+            entity.pending_admin_email = normalized
+
     def admin_update_church(self, actor_id: uuid.UUID, church_id: uuid.UUID, payload: ChurchUpdate) -> Church:
         church = self._get_church(church_id)
         changes = payload.model_dump(exclude_unset=True)
+        admin_email = changes.pop("admin_email", None)
         for field, value in changes.items():
             if value is not None:
                 setattr(church, field, value)
+        if admin_email is not None:
+            self._apply_admin_email_correction("church", church, admin_email)
         audit_service.record(self.db, actor_id, "church_updated", "church", church.id, changes)
         self.db.commit()
         self.db.refresh(church)
@@ -410,9 +441,12 @@ class CommunityService:
     def admin_update_fellowship(self, actor_id: uuid.UUID, fellowship_id: uuid.UUID, payload: FellowshipUpdate) -> Fellowship:
         fellowship = self._get_fellowship(fellowship_id)
         changes = payload.model_dump(exclude_unset=True)
+        admin_email = changes.pop("admin_email", None)
         for field, value in changes.items():
             if value is not None:
                 setattr(fellowship, field, value)
+        if admin_email is not None:
+            self._apply_admin_email_correction("fellowship", fellowship, admin_email)
         audit_service.record(self.db, actor_id, "fellowship_updated", "fellowship", fellowship.id, changes)
         self.db.commit()
         self.db.refresh(fellowship)

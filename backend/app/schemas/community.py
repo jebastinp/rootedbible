@@ -46,6 +46,10 @@ class ChurchUpdate(BaseModel):
     address: Optional[str] = Field(default=None, max_length=500)
     privacy: Optional[str] = Field(default=None, pattern="^(public|private|invite_only)$")
     status: Optional[str] = Field(default=None, pattern="^(active|suspended)$")
+    # Corrects a mistyped pending admin invite (or sets a new one). If this
+    # email already belongs to a Rooted account, that person becomes owner
+    # immediately; otherwise it replaces the pending invite email.
+    admin_email: Optional[str] = Field(default=None, max_length=255)
 
 
 class ChurchMemberOut(BaseModel):
@@ -96,6 +100,8 @@ class FellowshipUpdate(BaseModel):
     church_id: Optional[uuid.UUID] = None
     privacy: Optional[str] = Field(default=None, pattern="^(public|private|invite_only)$")
     status: Optional[str] = Field(default=None, pattern="^(active|suspended)$")
+    # Same as ChurchUpdate.admin_email.
+    admin_email: Optional[str] = Field(default=None, max_length=255)
 
 
 class FellowshipDetailOut(FellowshipOut):
